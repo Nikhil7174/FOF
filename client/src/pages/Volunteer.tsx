@@ -31,7 +31,7 @@ export default function Volunteer() {
             </div>
             <h1 className="text-4xl font-bold mb-3">Volunteer Sign-Up</h1>
             <p className="text-muted-foreground">
-              Help make FOF 2024 a success! Join our team of dedicated volunteers
+              Help make FOF 2026 a success! Join our team of dedicated volunteers
             </p>
           </div>
 

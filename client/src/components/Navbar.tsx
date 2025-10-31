@@ -24,7 +24,7 @@ export const Navbar = () => {
             <div className="bg-gradient-hero p-2 rounded-lg">
               <Trophy className="h-6 w-6 text-primary-foreground" />
             </div>
-            <span className="hidden sm:inline">FOF 2024</span>
+            <span className="hidden sm:inline">FOF 2026</span>
           </Link>
 
           {/* Desktop Navigation */}

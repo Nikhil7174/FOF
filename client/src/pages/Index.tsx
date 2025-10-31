@@ -50,7 +50,7 @@ const Index = () => {
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Quick Access</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Everything you need for FOF 2024 in one place
+              Everything you need for FOF 2026 in one place
             </p>
           </div>
 
@@ -83,7 +83,7 @@ const Index = () => {
       {/* CTA Section */}
       <section className="py-20 bg-muted/30">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Join FOF 2024?</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Join FOF 2026?</h2>
           <p className="text-muted-foreground text-lg mb-8 max-w-2xl mx-auto">
             Register now and be part of this amazing celebration of friendship, sports, and community
           </p>

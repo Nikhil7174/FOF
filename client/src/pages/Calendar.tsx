@@ -35,7 +35,7 @@ export default function Calendar() {
           </div>
           <h1 className="text-4xl font-bold mb-3">Sports Calendar</h1>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            View the complete schedule of all sports events during FOF 2024
+            View the complete schedule of all sports events during FOF 2026
           </p>
         </div>
 

@@ -27,7 +27,7 @@ export default function Register() {
     }
     toast({
       title: "Registration Successful!",
-      description: "Welcome to FOF 2024. Check your email for confirmation.",
+      description: "Welcome to FOF 2026. Check your email for confirmation.",
     });
   };
 
@@ -47,7 +47,7 @@ export default function Register() {
             <div className="inline-flex items-center justify-center p-3 bg-gradient-hero rounded-full mb-4">
               <UserPlus className="h-8 w-8 text-primary-foreground" />
             </div>
-            <h1 className="text-4xl font-bold mb-3">Register for FOF 2024</h1>
+            <h1 className="text-4xl font-bold mb-3">Register for FOF 2026</h1>
             <p className="text-muted-foreground">Join the Festival of Friendship and be part of something special</p>
           </div>
 
@@ -174,7 +174,7 @@ export default function Register() {
                       onCheckedChange={(checked) => setAgreedToIndemnity(checked as boolean)}
                     />
                     <Label htmlFor="indemnity" className="text-sm font-normal cursor-pointer leading-relaxed">
-                      I hereby acknowledge that I participate in FOF 2024 at my own risk and agree to hold
+                      I hereby acknowledge that I participate in FOF 2026 at my own risk and agree to hold
                       harmless the organizers from any liability for injuries or damages incurred during the event. *
                     </Label>
                   </div>

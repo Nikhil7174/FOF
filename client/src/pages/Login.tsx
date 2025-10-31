@@ -14,7 +14,7 @@ export default function Login() {
     e.preventDefault();
     toast({
       title: "Login Successful",
-      description: "Welcome back to FOF 2024!",
+      description: "Welcome back to FOF 2026!",
     });
   };
 
@@ -29,7 +29,7 @@ export default function Login() {
               <LogIn className="h-8 w-8 text-primary-foreground" />
             </div>
             <CardTitle className="text-2xl">Community Login</CardTitle>
-            <CardDescription>Access your FOF 2024 account</CardDescription>
+            <CardDescription>Access your FOF 2026 account</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
