@@ -9,26 +9,49 @@ import { communities, sports } from "@/data/mockData";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus } from "lucide-react";
+import { api } from "@/api";
+import { useNavigate } from "react-router-dom";
 
 export default function Register() {
   const { toast } = useToast();
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [agreedToIndemnity, setAgreedToIndemnity] = useState(false);
+  const [gender, setGender] = useState<string>("");
+  const [communityId, setCommunityId] = useState<string>("");
+  const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!agreedToIndemnity) {
-      toast({
-        title: "Agreement Required",
-        description: "Please agree to the indemnity form before submitting.",
-        variant: "destructive",
-      });
+      toast({ title: "Agreement Required", description: "Please agree to the indemnity form before submitting.", variant: "destructive" });
       return;
     }
-    toast({
-      title: "Registration Successful!",
-      description: "Welcome to FOF 2026. Check your email for confirmation.",
-    });
+    const form = new FormData(e.currentTarget);
+    const payload = {
+      firstName: String(form.get("firstName") || ""),
+      middleName: String(form.get("middleName") || ""),
+      lastName: String(form.get("lastName") || ""),
+      gender: (gender || "male") as "male" | "female",
+      dob: String(form.get("dob") || ""),
+      email: String(form.get("email") || ""),
+      phone: String(form.get("phone") || ""),
+      communityId: communityId,
+      nextOfKin: {
+        firstName: String(form.get("kinFirstName") || ""),
+        middleName: String(form.get("kinMiddleName") || ""),
+        lastName: String(form.get("kinLastName") || ""),
+        phone: String(form.get("kinPhone") || ""),
+      },
+      sports: selectedSports,
+    };
+    try {
+      await api.createParticipant(payload as any);
+      await api.sendEmail(payload.email, "FOF Registration Received", "Thank you for registering for FOF 2026.");
+      toast({ title: "Registration Successful!", description: "Check your email for confirmation." });
+      navigate("/thank-you");
+    } catch (err: any) {
+      toast({ title: "Registration failed", description: err?.message || "Please try again.", variant: "destructive" });
+    }
   };
 
   const toggleSport = (sportId: string) => {
@@ -62,22 +85,22 @@ export default function Register() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">First Name *</Label>
-                    <Input id="firstName" required />
+                    <Input id="firstName" name="firstName" placeholder="e.g., Ahmed" required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="middleName">Middle Name</Label>
-                    <Input id="middleName" />
+                    <Input id="middleName" name="middleName" placeholder="e.g., Ali" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="lastName">Last Name *</Label>
-                    <Input id="lastName" required />
+                    <Input id="lastName" name="lastName" placeholder="e.g., Hassan" required />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="gender">Gender *</Label>
-                    <Select required>
+                    <Select required onValueChange={setGender}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select gender" />
                       </SelectTrigger>
@@ -89,24 +112,24 @@ export default function Register() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="dob">Date of Birth *</Label>
-                    <Input id="dob" type="date" required />
+                    <Input id="dob" name="dob" type="date" placeholder="YYYY-MM-DD" required />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email Address *</Label>
-                    <Input id="email" type="email" required />
+                    <Input id="email" name="email" type="email" placeholder="e.g., ahmed@example.com" required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number *</Label>
-                    <Input id="phone" type="tel" required />
+                    <Input id="phone" name="phone" type="tel" placeholder="e.g., +254 712 345 678" required />
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="community">Community *</Label>
-                  <Select required>
+                  <Select required onValueChange={setCommunityId}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select your community" />
                     </SelectTrigger>
@@ -126,20 +149,20 @@ export default function Register() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="kinFirstName">First Name *</Label>
-                      <Input id="kinFirstName" required />
+                      <Input id="kinFirstName" name="kinFirstName" placeholder="e.g., Fatuma" required />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="kinMiddleName">Middle Name</Label>
-                      <Input id="kinMiddleName" />
+                      <Input id="kinMiddleName" name="kinMiddleName" placeholder="e.g., Amina" />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="kinLastName">Last Name *</Label>
-                      <Input id="kinLastName" required />
+                      <Input id="kinLastName" name="kinLastName" placeholder="e.g., Mohamed" required />
                     </div>
                   </div>
                   <div className="space-y-2 mt-4">
                     <Label htmlFor="kinPhone">Phone Number *</Label>
-                    <Input id="kinPhone" type="tel" required />
+                    <Input id="kinPhone" name="kinPhone" type="tel" placeholder="e.g., +254 700 000 000" required />
                   </div>
                 </div>
 

@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Trophy, Menu, X } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/hooks/api/useAuth";
 
 export const Navbar = () => {
   const location = useLocation();
@@ -12,6 +13,7 @@ export const Navbar = () => {
     { to: "/calendar", label: "Calendar" },
     { to: "/sports", label: "Sports" },
     { to: "/communities", label: "Communities" },
+    { to: "/contact", label: "Contact" },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -19,16 +21,19 @@ export const Navbar = () => {
   return (
     <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
       <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-bold text-xl">
-            <div className="bg-gradient-hero p-2 rounded-lg">
-              <Trophy className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <span className="hidden sm:inline">FOF 2026</span>
-          </Link>
+        <div className="flex md:grid md:grid-cols-3 h-16 items-center">
+          {/* Left: Brand */}
+          <div className="flex items-center justify-start">
+            <Link to="/" className="flex items-center gap-2 font-bold text-xl">
+              <div className="bg-gradient-hero p-2 rounded-lg">
+                <Trophy className="h-6 w-6 text-primary-foreground" />
+              </div>
+              <span className="hidden sm:inline">FOF 2026</span>
+            </Link>
+          </div>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-6">
+          {/* Center: Desktop Navigation */}
+          <div className="hidden md:flex items-center justify-center gap-6">
             {navLinks.map((link) => (
               <Link
                 key={link.to}
@@ -42,18 +47,14 @@ export const Navbar = () => {
             ))}
           </div>
 
-          <div className="hidden md:flex items-center gap-3">
-            <Button variant="ghost" asChild>
-              <Link to="/login">Login</Link>
-            </Button>
-            <Button variant="hero" asChild>
-              <Link to="/register">Register</Link>
-            </Button>
+          {/* Right: Desktop Actions */}
+          <div className="hidden md:flex items-center justify-end">
+            <DesktopActions />
           </div>
 
           {/* Mobile Menu Button */}
           <button
-            className="md:hidden p-2"
+            className="md:hidden p-2 ml-auto"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle menu"
           >
@@ -77,14 +78,7 @@ export const Navbar = () => {
                   {link.label}
                 </Link>
               ))}
-              <div className="flex flex-col gap-2 pt-2">
-                <Button variant="ghost" asChild>
-                  <Link to="/login" onClick={() => setMobileMenuOpen(false)}>Login</Link>
-                </Button>
-                <Button variant="hero" asChild>
-                  <Link to="/register" onClick={() => setMobileMenuOpen(false)}>Register</Link>
-                </Button>
-              </div>
+              <MobileActions onClick={() => setMobileMenuOpen(false)} />
             </div>
           </div>
         )}
@@ -92,3 +86,57 @@ export const Navbar = () => {
     </nav>
   );
 };
+
+function DesktopActions() {
+  const { user, logout } = useAuth();
+  return (
+    <div className="hidden md:flex items-center gap-3">
+      {user ? (
+        <>
+          {(user.role === "admin" || user.role === "community") && (
+            <Button variant="ghost" asChild>
+              <Link to={user.role === "admin" ? "/admin" : "/community"}>Dashboard</Link>
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => logout()}>Logout</Button>
+        </>
+      ) : (
+        <>
+          <Button variant="ghost" asChild>
+            <Link to="/login">Login</Link>
+          </Button>
+          <Button variant="hero" asChild>
+            <Link to="/register">Register</Link>
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MobileActions({ onClick }: { onClick: () => void }) {
+  const { user, logout } = useAuth();
+  return (
+    <div className="flex flex-col gap-2 pt-2">
+      {user ? (
+        <>
+          {(user.role === "admin" || user.role === "community") && (
+            <Button variant="ghost" asChild>
+              <Link to={user.role === "admin" ? "/admin" : "/community"} onClick={onClick}>Dashboard</Link>
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => { logout(); onClick() }}>Logout</Button>
+        </>
+      ) : (
+        <>
+          <Button variant="ghost" asChild>
+            <Link to="/login" onClick={onClick}>Login</Link>
+          </Button>
+          <Button variant="hero" asChild>
+            <Link to="/register" onClick={onClick}>Register</Link>
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
