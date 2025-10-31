@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { convenors, sportsRules } from "@/data/mockData";
 import { Trophy, Phone, Mail, BookOpen } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 export default function Sports() {
   return (
@@ -54,25 +55,33 @@ export default function Sports() {
           </TabsContent>
 
           <TabsContent value="rules" className="mt-6">
-            <div className="space-y-6">
-              {Object.entries(sportsRules).map(([sport, rules], index) => (
-                <Card key={sport} className="animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BookOpen className="h-5 w-5 text-primary" />
-                      {sport.charAt(0).toUpperCase() + sport.slice(1)}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="prose prose-sm max-w-none">
-                      {rules.split('\n').map((line, i) => (
-                        <p key={i} className="mb-2">{line}</p>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-primary" />
+                  Sports Rules
+                </CardTitle>
+                <CardDescription>Expand any sport to view its rules</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Accordion type="multiple" className="w-full">
+                  {Object.entries(sportsRules).map(([sport, rules]) => (
+                    <AccordionItem key={sport} value={sport}>
+                      <AccordionTrigger className="text-left">
+                        {sport.charAt(0).toUpperCase() + sport.slice(1)}
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="prose prose-sm max-w-none text-foreground">
+                          {rules.split('\n').map((line, i) => (
+                            <p key={i} className="mb-2">{line}</p>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="formats" className="mt-6">
