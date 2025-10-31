@@ -18,6 +18,7 @@ import { AuthProvider, useAuth } from "./hooks/api/useAuth";
 import { Footer } from "./components/Footer";
 import AdminDashboard from "./pages/admin/Dashboard";
 import CommunityDashboard from "./pages/community/Dashboard";
+import { Analytics } from '@vercel/analytics/react';
 
 // Minimal protected route gate by role
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role: "admin" | "community" }) {
@@ -31,6 +32,7 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <Analytics />
     <TooltipProvider>
       <Toaster />
       <Sonner />
