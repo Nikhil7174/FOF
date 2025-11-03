@@ -1,4 +1,4 @@
-import { mockDb, uid, Participant, VolunteerEntry } from "./mockDb";
+import { mockDb, uid, Participant, VolunteerEntry, SportRecord, CommunityRecord, User } from "./mockDb";
 
 const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
 
@@ -62,14 +62,130 @@ export const api = {
     return record;
   },
 
-  // Lookups
-  async listCommunities() {
-    await delay(100);
-    return mockDb.state.communities;
-  },
+  // Sports CRUD
   async listSports() {
     await delay(100);
     return mockDb.state.sports;
+  },
+  async getSport(id: string) {
+    await delay(100);
+    const sport = mockDb.state.sports.find((s) => s.id === id);
+    if (!sport) throw new Error("Sport not found");
+    return sport;
+  },
+  async createSport(input: Omit<SportRecord, "id">) {
+    await delay();
+    const sport: SportRecord = { ...input, id: uid("sport") };
+    mockDb.state.sports.push(sport);
+    mockDb.save();
+    return sport;
+  },
+  async updateSport(id: string, input: Partial<Omit<SportRecord, "id">>) {
+    await delay(150);
+    const sport = mockDb.state.sports.find((s) => s.id === id);
+    if (!sport) throw new Error("Sport not found");
+    Object.assign(sport, input);
+    mockDb.save();
+    return sport;
+  },
+  async deleteSport(id: string) {
+    await delay(150);
+    const index = mockDb.state.sports.findIndex((s) => s.id === id);
+    if (index === -1) throw new Error("Sport not found");
+    mockDb.state.sports.splice(index, 1);
+    mockDb.save();
+    return true;
+  },
+
+  // Communities CRUD
+  async listCommunities() {
+    await delay(100);
+    // Mask passwords for security
+    return mockDb.state.communities.map(({ password, ...community }) => ({
+      ...community,
+      password: password ? "***" : undefined,
+    }));
+  },
+  async getCommunity(id: string) {
+    await delay(100);
+    const community = mockDb.state.communities.find((c) => c.id === id);
+    if (!community) throw new Error("Community not found");
+    // Mask password for security
+    const { password, ...safeCommunity } = community;
+    return { ...safeCommunity, password: password ? "***" : undefined };
+  },
+  async createCommunity(input: Omit<CommunityRecord, "id">) {
+    await delay();
+    const community: CommunityRecord = { ...input, id: uid("comm") };
+    mockDb.state.communities.push(community);
+    mockDb.save();
+    // Mask password for security
+    const { password, ...safeCommunity } = community;
+    return { ...safeCommunity, password: password ? "***" : undefined };
+  },
+  async updateCommunity(id: string, input: Partial<Omit<CommunityRecord, "id">>) {
+    await delay(150);
+    const community = mockDb.state.communities.find((c) => c.id === id);
+    if (!community) throw new Error("Community not found");
+    Object.assign(community, input);
+    mockDb.save();
+    // Mask password for security
+    const { password, ...safeCommunity } = community;
+    return { ...safeCommunity, password: password ? "***" : undefined };
+  },
+  async deleteCommunity(id: string) {
+    await delay(150);
+    const index = mockDb.state.communities.findIndex((c) => c.id === id);
+    if (index === -1) throw new Error("Community not found");
+    mockDb.state.communities.splice(index, 1);
+    mockDb.save();
+    return true;
+  },
+
+  // Users CRUD
+  async listUsers() {
+    await delay(100);
+    return mockDb.state.users.map(({ password, ...user }) => ({ ...user, password: "***" })); // Don't expose passwords
+  },
+  async getUser(id: string) {
+    await delay(100);
+    const user = mockDb.state.users.find((u) => u.id === id);
+    if (!user) throw new Error("User not found");
+    const { password, ...safeUser } = user;
+    return { ...safeUser, password: "***" };
+  },
+  async createUser(input: Omit<User, "id">) {
+    await delay();
+    if (mockDb.state.users.some((u) => u.username === input.username)) {
+      throw new Error("Username already exists");
+    }
+    const user: User = { ...input, id: uid("u") };
+    mockDb.state.users.push(user);
+    mockDb.save();
+    const { password, ...safeUser } = user;
+    return { ...safeUser, password: "***" };
+  },
+  async updateUser(id: string, input: Partial<Omit<User, "id">>) {
+    await delay(150);
+    const user = mockDb.state.users.find((u) => u.id === id);
+    if (!user) throw new Error("User not found");
+    if (input.username && input.username !== user.username) {
+      if (mockDb.state.users.some((u) => u.username === input.username)) {
+        throw new Error("Username already exists");
+      }
+    }
+    Object.assign(user, input);
+    mockDb.save();
+    const { password, ...safeUser } = user;
+    return { ...safeUser, password: "***" };
+  },
+  async deleteUser(id: string) {
+    await delay(150);
+    const index = mockDb.state.users.findIndex((u) => u.id === id);
+    if (index === -1) throw new Error("User not found");
+    mockDb.state.users.splice(index, 1);
+    mockDb.save();
+    return true;
   },
   async listDepartments() {
     await delay(100);

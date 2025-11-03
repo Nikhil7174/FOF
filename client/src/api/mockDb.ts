@@ -5,10 +5,11 @@ export type Role = "admin" | "community" | "volunteer" | null;
 export interface User {
   id: string;
   username: string;
+  email?: string;
   password: string;
   role: Exclude<Role, null>;
   communityId?: string;
-  volunteerId?: string;
+  sportId?: string;
 }
 
 export interface Participant {
@@ -53,6 +54,7 @@ export interface CommunityRecord {
   contactPerson: string;
   phone: string;
   email: string;
+  password?: string; // Optional password for community access
 }
 
 export interface SportRecord {
@@ -61,6 +63,14 @@ export interface SportRecord {
   active: boolean;
   type: "individual" | "team";
   requiresTeamName: boolean;
+  venue?: string;
+  timings?: string;
+  date?: string; // ISO date string
+  gender?: "male" | "female" | "mixed" | null;
+  ageLimit?: {
+    min?: number;
+    max?: number;
+  };
 }
 
 export interface CalendarItem {
