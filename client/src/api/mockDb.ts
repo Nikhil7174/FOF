@@ -44,6 +44,7 @@ export interface VolunteerEntry {
   email: string;
   phone: string;
   departmentId: string;
+  sportId?: string;
   createdAt: string;
 }
 

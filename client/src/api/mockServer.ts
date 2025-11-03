@@ -61,6 +61,10 @@ export const api = {
     mockDb.save();
     return record;
   },
+  async listVolunteers() {
+    await delay(100);
+    return mockDb.state.volunteers;
+  },
 
   // Sports CRUD
   async listSports() {

@@ -6,6 +6,7 @@ import { api } from "@/api";
 import { SportManagement } from "@/components/admin/SportManagement";
 import { CommunityManagement } from "@/components/admin/CommunityManagement";
 import { UserManagement } from "@/components/admin/UserManagement";
+import { VolunteerManagement } from "@/components/admin/VolunteerManagement";
 
 export default function AdminDashboard() {
   const { data: participants = [] } = useQuery({ queryKey: ["participants"], queryFn: api.listParticipants });
@@ -32,6 +33,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="sports">Sports</TabsTrigger>
             <TabsTrigger value="communities">Communities</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="volunteers">Volunteers</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -67,6 +69,10 @@ export default function AdminDashboard() {
 
           <TabsContent value="users">
             <UserManagement />
+          </TabsContent>
+
+          <TabsContent value="volunteers">
+            <VolunteerManagement />
           </TabsContent>
         </Tabs>
       </div>
