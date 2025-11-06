@@ -22,6 +22,7 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import CommunityAdmin from "./pages/admin/CommunityAdmin";
 import SportsAdmin from "./pages/admin/SportsAdmin";
 import VolunteerAdmin from "./pages/admin/VolunteerAdmin";
+import UserDashboard from "./pages/user/Dashboard";
 import { Analytics } from '@vercel/analytics/react';
 
 // Minimal protected route gate by role
@@ -60,6 +61,7 @@ const App = () => (
             <Route path="/community" element={<ProtectedRoute role="community_admin"><CommunityAdmin /></ProtectedRoute>} />
             <Route path="/sports-admin" element={<ProtectedRoute role="sports_admin"><SportsAdmin /></ProtectedRoute>} />
             <Route path="/volunteer-admin" element={<ProtectedRoute role="volunteer_admin"><VolunteerAdmin /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<UserDashboard />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

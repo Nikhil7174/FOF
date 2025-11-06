@@ -63,6 +63,29 @@ export const api = {
     mockDb.save();
     return true;
   },
+  async getMyParticipant() {
+    await delay(100);
+    const raw = localStorage.getItem("fof-session");
+    if (!raw) return null;
+    const { userId } = JSON.parse(raw);
+    const user = mockDb.state.users.find((u) => u.id === userId);
+    if (!user || !user.email) return null;
+    const participant = mockDb.state.participants.find((p) => p.email === user.email);
+    return participant ?? null;
+  },
+  async updateParticipantSports(sportIds: string[]) {
+    await delay(150);
+    const raw = localStorage.getItem("fof-session");
+    if (!raw) throw new Error("Not authenticated");
+    const { userId } = JSON.parse(raw);
+    const user = mockDb.state.users.find((u) => u.id === userId);
+    if (!user || !user.email) throw new Error("User not found");
+    const participant = mockDb.state.participants.find((p) => p.email === user.email);
+    if (!participant) throw new Error("Participant not found");
+    participant.sports = sportIds;
+    mockDb.save();
+    return participant;
+  },
 
   // Volunteers
   async createVolunteer(input: Omit<VolunteerEntry, "id" | "createdAt">) {
@@ -102,6 +125,19 @@ export const api = {
     await delay(100);
     return mockDb.state.sports;
   },
+  async listSportsTree() {
+    await delay(100);
+    const all = mockDb.state.sports;
+    const parents = all.filter((s) => !s.parentId);
+    return parents.map((p) => ({
+      parent: p,
+      children: all.filter((c) => c.parentId === p.id),
+    }));
+  },
+  async getSubsports(parentId: string) {
+    await delay(80);
+    return mockDb.state.sports.filter((s) => s.parentId === parentId);
+  },
   async getSport(id: string) {
     await delay(100);
     const sport = mockDb.state.sports.find((s) => s.id === id);
@@ -125,9 +161,9 @@ export const api = {
   },
   async deleteSport(id: string) {
     await delay(150);
-    const index = mockDb.state.sports.findIndex((s) => s.id === id);
-    if (index === -1) throw new Error("Sport not found");
-    mockDb.state.sports.splice(index, 1);
+    // Also delete children of this sport to keep DB consistent
+    const children = mockDb.state.sports.filter((s) => s.parentId === id).map((s) => s.id);
+    mockDb.state.sports = mockDb.state.sports.filter((s) => s.id !== id && s.parentId !== id);
     mockDb.save();
     return true;
   },

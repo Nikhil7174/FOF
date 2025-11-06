@@ -40,7 +40,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Edit, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -49,6 +49,7 @@ const sportSchema = z.object({
   name: z.string().min(1, "Name is required"),
   type: z.enum(["individual", "team"]),
   requiresTeamName: z.boolean(),
+  parentId: z.string().optional(),
   active: z.boolean(),
   venue: z.string().optional(),
   timings: z.string().optional(),
@@ -65,6 +66,7 @@ export function SportManagement() {
   const [editingSport, setEditingSport] = useState<SportRecord | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [sportToDelete, setSportToDelete] = useState<SportRecord | null>(null);
+  const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
   const queryClient = useQueryClient();
 
   const { data: sports = [] } = useQuery({
@@ -78,6 +80,7 @@ export function SportManagement() {
       name: "",
       type: "individual",
       requiresTeamName: false,
+      parentId: undefined,
       active: true,
       venue: "",
       timings: "",
@@ -94,6 +97,7 @@ export function SportManagement() {
         name: data.name,
         type: data.type,
         requiresTeamName: data.requiresTeamName,
+        parentId: data.parentId || undefined,
         active: data.active,
         venue: data.venue || undefined,
         timings: data.timings || undefined,
@@ -121,6 +125,7 @@ export function SportManagement() {
       if (data.name !== undefined) sportData.name = data.name;
       if (data.type !== undefined) sportData.type = data.type;
       if (data.requiresTeamName !== undefined) sportData.requiresTeamName = data.requiresTeamName;
+      if (data.parentId !== undefined) sportData.parentId = data.parentId || undefined;
       if (data.active !== undefined) sportData.active = data.active;
       if (data.venue !== undefined) sportData.venue = data.venue || undefined;
       if (data.timings !== undefined) sportData.timings = data.timings || undefined;
@@ -158,6 +163,7 @@ export function SportManagement() {
         name: sport.name,
         type: sport.type,
         requiresTeamName: sport.requiresTeamName,
+        parentId: sport.parentId,
         active: sport.active,
         venue: sport.venue || "",
         timings: sport.timings || "",
@@ -234,6 +240,28 @@ export function SportManagement() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="parentId">Parent Sport (optional)</Label>
+                <Select
+                  value={form.watch("parentId") || "none"}
+                  onValueChange={(value) => form.setValue("parentId", value === "none" ? undefined : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No parent (top-level sport)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No parent</SelectItem>
+                    {sports
+                      .filter((s) => !s.parentId)
+                      .map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -349,44 +377,89 @@ export function SportManagement() {
                 </TableCell>
               </TableRow>
             ) : (
-              sports.map((sport) => (
-                <TableRow key={sport.id}>
-                  <TableCell className="font-medium">{sport.name}</TableCell>
-                  <TableCell>{sport.type}</TableCell>
-                  <TableCell>{sport.venue || "-"}</TableCell>
-                  <TableCell>{sport.timings || "-"}</TableCell>
-                  <TableCell>{sport.date || "-"}</TableCell>
-                  <TableCell>{sport.gender || "Any"}</TableCell>
-                  <TableCell>
-                    {sport.ageLimit
-                      ? `${sport.ageLimit.min || "?"}-${sport.ageLimit.max || "?"}`
-                      : "-"}
-                  </TableCell>
-                  <TableCell>
-                    <span className={`px-2 py-1 rounded text-xs ${sport.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
-                      {sport.active ? "Active" : "Inactive"}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenDialog(sport)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleDelete(sport)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+              sports
+                .filter((s) => !s.parentId)
+                .map((parent) => (
+                  <>
+                    <TableRow key={parent.id}>
+                      <TableCell className="font-medium">
+                        <button
+                          type="button"
+                          className="inline-flex items-center mr-2"
+                          onClick={() =>
+                            setExpandedParents((prev) => ({ ...prev, [parent.id]: !prev[parent.id] }))
+                          }
+                          aria-label="Toggle children"
+                        >
+                          {sports.some((s) => s.parentId === parent.id) ? (
+                            expandedParents[parent.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
+                          ) : (
+                            <span className="inline-block w-4" />
+                          )}
+                        </button>
+                        {parent.name}
+                      </TableCell>
+                      <TableCell>{parent.type}</TableCell>
+                      <TableCell>{parent.venue || "-"}</TableCell>
+                      <TableCell>{parent.timings || "-"}</TableCell>
+                      <TableCell>{parent.date || "-"}</TableCell>
+                      <TableCell>{parent.gender || "Any"}</TableCell>
+                      <TableCell>
+                        {parent.ageLimit
+                          ? `${parent.ageLimit.min || "?"}-${parent.ageLimit.max || "?"}`
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded text-xs ${parent.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
+                          {parent.active ? "Active" : "Inactive"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={() => handleOpenDialog(parent)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="destructive" size="sm" onClick={() => handleDelete(parent)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {expandedParents[parent.id] &&
+                      sports
+                        .filter((c) => c.parentId === parent.id)
+                        .map((child) => (
+                          <TableRow key={child.id}>
+                            <TableCell className="font-medium pl-8">└─ {child.name}</TableCell>
+                            <TableCell>{child.type}</TableCell>
+                            <TableCell>{child.venue || "-"}</TableCell>
+                            <TableCell>{child.timings || "-"}</TableCell>
+                            <TableCell>{child.date || "-"}</TableCell>
+                            <TableCell>{child.gender || "Any"}</TableCell>
+                            <TableCell>
+                              {child.ageLimit
+                                ? `${child.ageLimit.min || "?"}-${child.ageLimit.max || "?"}`
+                                : "-"}
+                            </TableCell>
+                            <TableCell>
+                              <span className={`px-2 py-1 rounded text-xs ${child.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
+                                {child.active ? "Active" : "Inactive"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button variant="outline" size="sm" onClick={() => handleOpenDialog(child)}>
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button variant="destructive" size="sm" onClick={() => handleDelete(child)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                  </>
+                ))
             )}
           </TableBody>
         </Table>

@@ -87,15 +87,35 @@ export const Navbar = () => {
   );
 };
 
+function getDashboardRoute(role: string): string | null {
+  switch (role) {
+    case "admin":
+      return "/admin";
+    case "community_admin":
+      return "/community";
+    case "sports_admin":
+      return "/sports-admin";
+    case "volunteer_admin":
+      return "/volunteer-admin";
+    case "user":
+    case "volunteer":
+      return "/dashboard";
+    default:
+      return null;
+  }
+}
+
 function DesktopActions() {
   const { user, logout } = useAuth();
+  const dashboardRoute = user ? getDashboardRoute(user.role) : null;
+  
   return (
     <div className="hidden md:flex items-center gap-3">
       {user ? (
         <>
-          {(user.role === "admin" || user.role === "community") && (
+          {dashboardRoute && (
             <Button variant="ghost" asChild>
-              <Link to={user.role === "admin" ? "/admin" : "/community"}>Dashboard</Link>
+              <Link to={dashboardRoute}>Dashboard</Link>
             </Button>
           )}
           <Button variant="outline" onClick={() => logout()}>Logout</Button>
@@ -116,13 +136,15 @@ function DesktopActions() {
 
 function MobileActions({ onClick }: { onClick: () => void }) {
   const { user, logout } = useAuth();
+  const dashboardRoute = user ? getDashboardRoute(user.role) : null;
+  
   return (
     <div className="flex flex-col gap-2 pt-2">
       {user ? (
         <>
-          {(user.role === "admin" || user.role === "community") && (
+          {dashboardRoute && (
             <Button variant="ghost" asChild>
-              <Link to={user.role === "admin" ? "/admin" : "/community"} onClick={onClick}>Dashboard</Link>
+              <Link to={dashboardRoute} onClick={onClick}>Dashboard</Link>
             </Button>
           )}
           <Button variant="outline" onClick={() => { logout(); onClick() }}>Logout</Button>

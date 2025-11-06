@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { communities, sports } from "@/data/mockData";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus } from "lucide-react";
@@ -19,6 +19,16 @@ export default function Register() {
   const [gender, setGender] = useState<string>("");
   const [communityId, setCommunityId] = useState<string>("");
   const navigate = useNavigate();
+
+  const { data: communities = [] } = useQuery({
+    queryKey: ["communities"],
+    queryFn: api.listCommunities,
+  });
+
+  const { data: sports = [] } = useQuery({
+    queryKey: ["sports"],
+    queryFn: api.listSports,
+  });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -170,21 +180,43 @@ export default function Register() {
                 <div className="pt-4 border-t">
                   <h3 className="text-lg font-semibold mb-4">Sports Selection *</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {sports.map((sport) => (
-                      <div key={sport.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`sport-${sport.id}`}
-                          checked={selectedSports.includes(sport.id)}
-                          onCheckedChange={() => toggleSport(sport.id)}
-                        />
-                        <Label
-                          htmlFor={`sport-${sport.id}`}
-                          className="text-sm font-normal cursor-pointer"
-                        >
-                          {sport.name}
-                        </Label>
-                      </div>
-                    ))}
+                    {sports
+                      .filter((s: any) => !s.parentId)
+                      .map((parent: any) => {
+                        const children = sports.filter((s: any) => s.parentId === parent.id);
+                        return (
+                          <div key={parent.id} className="space-y-2">
+                            <div className="font-medium">{parent.name}</div>
+                            {children.length > 0 ? (
+                              <div className="ml-4 space-y-2">
+                                {children.map((child: any) => (
+                                  <div key={child.id} className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id={`sport-${child.id}`}
+                                      checked={selectedSports.includes(child.id)}
+                                      onCheckedChange={() => toggleSport(child.id)}
+                                    />
+                                    <Label htmlFor={`sport-${child.id}`} className="text-sm font-normal cursor-pointer">
+                                      {child.name}
+                                    </Label>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`sport-${parent.id}`}
+                                  checked={selectedSports.includes(parent.id)}
+                                  onCheckedChange={() => toggleSport(parent.id)}
+                                />
+                                <Label htmlFor={`sport-${parent.id}`} className="text-sm font-normal cursor-pointer">
+                                  {parent.name}
+                                </Label>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
 

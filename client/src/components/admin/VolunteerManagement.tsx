@@ -123,7 +123,7 @@ export function VolunteerManagement() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">All sports</SelectItem>
-                {sports.map((s: any) => (
+                {sports.filter((s: any) => !s.parentId).map((s: any) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -245,7 +245,7 @@ export function VolunteerManagement() {
                     <SelectValue placeholder="Select sport" />
                   </SelectTrigger>
                   <SelectContent>
-                    {sports.map((s: any) => (
+                    {sports.filter((s: any) => !s.parentId).map((s: any) => (
                       <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                     ))}
                   </SelectContent>

@@ -69,7 +69,7 @@ export default function SportsAdminLogin() {
                     <SelectValue placeholder="Select a sport" />
                   </SelectTrigger>
                   <SelectContent>
-                    {sports.map((sport: any) => (
+                    {(sports as any[]).filter((s: any) => !s.parentId).map((sport: any) => (
                       <SelectItem key={sport.id} value={sport.id}>
                         {sport.name}
                       </SelectItem>

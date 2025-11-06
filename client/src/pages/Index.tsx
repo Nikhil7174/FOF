@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Calendar, Trophy, Users, Heart } from "lucide-react";
+import { useAuth } from "@/hooks/api/useAuth";
 
 const Index = () => {
+  const { user } = useAuth();
   const quickLinks = [
     {
       title: "Sports Calendar",
@@ -81,22 +83,24 @@ const Index = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-muted/30">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Join FOF 2026?</h2>
-          <p className="text-muted-foreground text-lg mb-8 max-w-2xl mx-auto">
-            Register now and be part of this amazing celebration of friendship, sports, and community
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="hero" asChild>
-              <Link to="/register">Register as Participant</Link>
-            </Button>
-            <Button size="lg" variant="secondary" asChild>
-              <Link to="/volunteer">Volunteer with Us</Link>
-            </Button>
+      {!user && (
+        <section className="py-20 bg-muted/30">
+          <div className="container mx-auto px-4 text-center">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Join FOF 2026?</h2>
+            <p className="text-muted-foreground text-lg mb-8 max-w-2xl mx-auto">
+              Register now and be part of this amazing celebration of friendship, sports, and community
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button size="lg" variant="hero" asChild>
+                <Link to="/register">Register as Participant</Link>
+              </Button>
+              <Button size="lg" variant="secondary" asChild>
+                <Link to="/volunteer">Volunteer with Us</Link>
+              </Button>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 };

@@ -64,6 +64,8 @@ export interface SportRecord {
   active: boolean;
   type: "individual" | "team";
   requiresTeamName: boolean;
+  // Optional parent sport id; when set, this sport is a sub-option
+  parentId?: string;
   venue?: string;
   timings?: string;
   date?: string; // ISO date string
@@ -112,8 +114,10 @@ function seed(): MockDbShape {
       { id: "s1", username: "footballadmin", email: "football@fof.co.ke", password: "football", role: "sports_admin", sportId: "1" },
       { id: "s2", username: "basketballadmin", email: "basketball@fof.co.ke", password: "basketball", role: "sports_admin", sportId: "2" },
       { id: "s3", username: "athleticsadmin", email: "athletics@fof.co.ke", password: "athletics", role: "sports_admin", sportId: "4" },
+      { id: "s4", username: "badmintonadmin", email: "badminton@fof.co.ke", password: "badminton", role: "sports_admin", sportId: "10" },
       { id: "vadmin", username: "voladmin", email: "voladmin@fof.co.ke", password: "voladmin", role: "volunteer_admin" },
       { id: "v1", username: "volunteer", email: "volunteer@fof.co.ke", password: "volunteer", role: "volunteer" },
+      { id: "u2", username: "user", email: "user@fof.co.ke", password: "user", role: "user" },
     ],
     participants: [
       {
@@ -271,6 +275,15 @@ function seed(): MockDbShape {
       { id: "1", name: "Football", active: true, type: "team", requiresTeamName: true },
       { id: "2", name: "Basketball", active: true, type: "team", requiresTeamName: true },
       { id: "4", name: "Athletics", active: true, type: "individual", requiresTeamName: false },
+      // Example hierarchical sports
+      { id: "10", name: "Badminton", active: true, type: "individual", requiresTeamName: false },
+      { id: "10a", name: "Singles", active: true, type: "individual", requiresTeamName: false, parentId: "10" },
+      { id: "10b", name: "Doubles", active: true, type: "team", requiresTeamName: false, parentId: "10" },
+      { id: "10c", name: "Mixed Doubles", active: true, type: "team", requiresTeamName: false, parentId: "10" },
+
+      { id: "11", name: "Darts", active: true, type: "individual", requiresTeamName: false },
+      { id: "11a", name: "Singles", active: true, type: "individual", requiresTeamName: false, parentId: "11" },
+      { id: "11b", name: "Doubles", active: true, type: "team", requiresTeamName: false, parentId: "11" },
     ],
     departments: [
       { id: "d1", name: "Event Coordination" },

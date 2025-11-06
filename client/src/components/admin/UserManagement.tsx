@@ -288,9 +288,9 @@ export function UserManagement() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
-                      {sports.map((sport) => (
-                        <SelectItem key={sport.id} value={sport.id}>
-                          {sport.name}
+                      {sports.filter((s: any) => !s.parentId).map((parent: any) => (
+                        <SelectItem key={parent.id} value={parent.id}>
+                          {parent.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
