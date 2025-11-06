@@ -5,7 +5,10 @@ const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
 export const api = {
   async login(username: string, password: string) {
     await delay();
-    const user = mockDb.state.users.find((u) => u.username === username && u.password === password);
+    // Try username first, then email
+    const user = mockDb.state.users.find((u) => 
+      (u.username === username || u.email === username) && u.password === password
+    );
     if (!user) throw new Error("Invalid credentials");
     const session = { userId: user.id };
     localStorage.setItem("fof-session", JSON.stringify(session));
@@ -52,6 +55,14 @@ export const api = {
     mockDb.save();
     return p;
   },
+  async deleteParticipant(id: string) {
+    await delay(150);
+    const index = mockDb.state.participants.findIndex((p) => p.id === id);
+    if (index === -1) throw new Error("Participant not found");
+    mockDb.state.participants.splice(index, 1);
+    mockDb.save();
+    return true;
+  },
 
   // Volunteers
   async createVolunteer(input: Omit<VolunteerEntry, "id" | "createdAt">) {
@@ -61,9 +72,29 @@ export const api = {
     mockDb.save();
     return record;
   },
-  async listVolunteers() {
+  async listVolunteers(sportId?: string) {
     await delay(100);
-    return mockDb.state.volunteers;
+    const allVolunteers = mockDb.state.volunteers || [];
+    console.log("listVolunteers - Total volunteers in DB:", allVolunteers.length);
+    console.log("listVolunteers - DB state:", mockDb.state);
+    console.log("listVolunteers - sportId param:", sportId);
+    let result;
+    if (sportId) {
+      result = allVolunteers.filter(v => v.sportId === sportId);
+    } else {
+      result = allVolunteers;
+    }
+    console.log("listVolunteers - Returning:", result);
+    console.log("listVolunteers - Return length:", result.length);
+    return result;
+  },
+  async updateVolunteer(id: string, data: Partial<VolunteerEntry>) {
+    await delay(150);
+    const volunteer = mockDb.state.volunteers.find((v) => v.id === id);
+    if (!volunteer) throw new Error("Volunteer not found");
+    Object.assign(volunteer, data);
+    mockDb.save();
+    return volunteer;
   },
 
   // Sports CRUD

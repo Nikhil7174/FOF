@@ -4,9 +4,9 @@ import { api } from "@/api";
 export interface AuthUser {
   id: string;
   username: string;
-  role: "admin" | "community" | "volunteer";
+  role: "admin" | "community_admin" | "sports_admin" | "volunteer_admin" | "volunteer" | "user";
   communityId?: string;
-  volunteerId?: string;
+  sportId?: string;
 }
 
 interface AuthContextValue {

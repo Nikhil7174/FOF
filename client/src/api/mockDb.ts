@@ -1,6 +1,6 @@
 // Simple in-memory mock database with optional localStorage persistence
 
-export type Role = "admin" | "community" | "volunteer" | null;
+export type Role = "admin" | "community_admin" | "sports_admin" | "volunteer_admin" | "volunteer" | "user" | null;
 
 export interface User {
   id: string;
@@ -106,12 +106,163 @@ const STORAGE_KEY = "fof-mock-db";
 function seed(): MockDbShape {
   return {
     users: [
-      { id: "u1", username: "admin", password: "admin", role: "admin" },
-      { id: "c1", username: "nairobi", password: "community", role: "community", communityId: "1" },
-      { id: "v1", username: "volunteer", password: "volunteer", role: "volunteer" },
+      { id: "u1", username: "admin", email: "admin@fof.co.ke", password: "admin", role: "admin" },
+      { id: "c1", username: "commadmin1", email: "commadmin1@fof.co.ke", password: "community", role: "community_admin", communityId: "1" },
+      { id: "c2", username: "commadmin2", email: "commadmin2@fof.co.ke", password: "community", role: "community_admin", communityId: "2" },
+      { id: "s1", username: "footballadmin", email: "football@fof.co.ke", password: "football", role: "sports_admin", sportId: "1" },
+      { id: "s2", username: "basketballadmin", email: "basketball@fof.co.ke", password: "basketball", role: "sports_admin", sportId: "2" },
+      { id: "s3", username: "athleticsadmin", email: "athletics@fof.co.ke", password: "athletics", role: "sports_admin", sportId: "4" },
+      { id: "vadmin", username: "voladmin", email: "voladmin@fof.co.ke", password: "voladmin", role: "volunteer_admin" },
+      { id: "v1", username: "volunteer", email: "volunteer@fof.co.ke", password: "volunteer", role: "volunteer" },
     ],
-    participants: [],
-    volunteers: [],
+    participants: [
+      {
+        id: "p1",
+        firstName: "Asha",
+        middleName: "",
+        lastName: "Mwangi",
+        gender: "female",
+        dob: "2004-05-12",
+        email: "asha.mwangi@example.com",
+        phone: "+254711000001",
+        communityId: "1",
+        nextOfKin: { firstName: "Mary", lastName: "Mwangi", phone: "+254711222333" },
+        sports: ["1"],
+        status: "pending",
+        teamName: "Nairobi Queens",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "p2",
+        firstName: "Brian",
+        middleName: "",
+        lastName: "Otieno",
+        gender: "male",
+        dob: "2003-09-22",
+        email: "brian.otieno@example.com",
+        phone: "+254711000002",
+        communityId: "2",
+        nextOfKin: { firstName: "Peter", lastName: "Otieno", phone: "+254722111444" },
+        sports: ["2","4"],
+        status: "accepted",
+        createdAt: new Date().toISOString(),
+      },
+    ],
+    volunteers: [
+      {
+        id: "vol1",
+        firstName: "Grace",
+        lastName: "Kariuki",
+        gender: "female",
+        dob: "1999-01-10",
+        email: "grace.kariuki@example.com",
+        phone: "+254733100200",
+        departmentId: "d1",
+        sportId: "1",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "vol2",
+        firstName: "Hassan",
+        lastName: "Ali",
+        gender: "male",
+        dob: "1997-07-18",
+        email: "hassan.ali@example.com",
+        phone: "+254733100201",
+        departmentId: "d2",
+        sportId: "2",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "vol3",
+        firstName: "Linet",
+        lastName: "Chebet",
+        gender: "female",
+        dob: "2000-03-03",
+        email: "linet.chebet@example.com",
+        phone: "+254733100202",
+        departmentId: "d1",
+        sportId: "4",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "vol4",
+        firstName: "Peter",
+        lastName: "Mwangi",
+        gender: "male",
+        dob: "1995-05-15",
+        email: "peter.mwangi@example.com",
+        phone: "+254733100203",
+        departmentId: "d1",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "vol5",
+        firstName: "Sarah",
+        lastName: "Wanjiku",
+        gender: "female",
+        dob: "1998-08-22",
+        email: "sarah.wanjiku@example.com",
+        phone: "+254733100204",
+        departmentId: "d2",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "vol6",
+        firstName: "David",
+        lastName: "Ochieng",
+        gender: "male",
+        dob: "1996-11-30",
+        email: "david.ochieng@example.com",
+        phone: "+254733100205",
+        departmentId: "d1",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "vol7",
+        firstName: "Mary",
+        lastName: "Njeri",
+        gender: "female",
+        dob: "1999-02-14",
+        email: "mary.njeri@example.com",
+        phone: "+254733100206",
+        departmentId: "d2",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "vol8",
+        firstName: "James",
+        lastName: "Kipchoge",
+        gender: "male",
+        dob: "1994-09-10",
+        email: "james.kipchoge@example.com",
+        phone: "+254733100207",
+        departmentId: "d1",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "vol9",
+        firstName: "Ruth",
+        lastName: "Kamau",
+        gender: "female",
+        dob: "2001-06-25",
+        email: "ruth.kamau@example.com",
+        phone: "+254733100208",
+        departmentId: "d2",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: "vol10",
+        firstName: "Michael",
+        lastName: "Mutua",
+        gender: "male",
+        dob: "1997-12-05",
+        email: "michael.mutua@example.com",
+        phone: "+254733100209",
+        departmentId: "d1",
+        createdAt: new Date().toISOString(),
+      },
+    ],
     communities: [
       { id: "1", name: "Nairobi Central", active: true, contactPerson: "Ahmed Hassan", phone: "+254 712 111 111", email: "nairobi.central@fof.co.ke" },
       { id: "2", name: "Westlands", active: true, contactPerson: "Jennifer Muthoni", phone: "+254 723 222 222", email: "westlands@fof.co.ke" },
@@ -137,7 +288,14 @@ function seed(): MockDbShape {
 function load(): MockDbShape {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as MockDbShape;
+    if (raw) {
+      const parsed = JSON.parse(raw) as MockDbShape;
+      // If volunteers array is missing or empty, reset to seed data
+      if (!parsed.volunteers || parsed.volunteers.length === 0) {
+        return seed();
+      }
+      return parsed;
+    }
   } catch {}
   return seed();
 }

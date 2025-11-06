@@ -48,7 +48,7 @@ const userSchema = z.object({
   username: z.string().min(1, "Username is required"),
   email: z.string().email("Invalid email address").optional(),
   password: z.string().optional(),
-  role: z.enum(["admin", "community", "volunteer"]),
+  role: z.enum(["admin", "community_admin", "sports_admin", "volunteer_admin", "volunteer", "user"]),
   communityId: z.string().optional(),
   sportId: z.string().optional(),
 });
@@ -240,15 +240,18 @@ export function UserManagement() {
                 <Label htmlFor="role">Role *</Label>
                 <Select
                   value={form.watch("role")}
-                  onValueChange={(value) => form.setValue("role", value as "admin" | "community" | "volunteer")}
+                  onValueChange={(value) => form.setValue("role", value as "admin" | "community_admin" | "sports_admin" | "volunteer_admin" | "volunteer" | "user")}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="community">Community</SelectItem>
+                    <SelectItem value="community_admin">Community Admin</SelectItem>
+                    <SelectItem value="sports_admin">Sports Admin</SelectItem>
+                    <SelectItem value="volunteer_admin">Volunteer Admin</SelectItem>
                     <SelectItem value="volunteer">Volunteer</SelectItem>
+                    <SelectItem value="user">User</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

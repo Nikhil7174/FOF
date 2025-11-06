@@ -23,10 +23,14 @@ export default function Login() {
       // demo users: admin/admin, nairobi/community, volunteer/volunteer
       await login(username, password);
       toast({ title: "Login Successful", description: "Welcome back to FOF 2026!" });
-      // fetch role via me() is async in provider; navigate based on username to keep simple
-      if (username === "admin") navigate("/admin");
-      else if (username === "nairobi" || username.startsWith("comm")) navigate("/community");
-      else navigate("/"); // volunteers don't have a dashboard
+      // Read role from local session via api.me() indirectly; quick fetch
+      const me = await (await import("@/api")).api.me();
+      const role = (me as any)?.role;
+      if (role === "admin") navigate("/admin");
+      else if (role === "community_admin") navigate("/community");
+      else if (role === "sports_admin") navigate("/sports-admin");
+      else if (role === "volunteer_admin") navigate("/volunteer-admin");
+      else navigate("/");
     } catch (err: any) {
       toast({ title: "Login failed", description: err?.message || "Invalid credentials", variant: "destructive" });
     }
@@ -43,7 +47,7 @@ export default function Login() {
               <LogIn className="h-8 w-8 text-primary-foreground" />
             </div>
             <CardTitle className="text-2xl">Login</CardTitle>
-            <CardDescription>Access your FOF 2026 account (Admin, Community, or Volunteer)</CardDescription>
+            <CardDescription>Participant, Volunteer or Admin</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -68,8 +72,14 @@ export default function Login() {
               </Link>
             </div>
             <div className="flex flex-col gap-2 text-sm text-center">
-              <Link to="/community-signup" className="text-primary hover:underline font-medium">
-                Community Signup
+              <Link to="/sports-admin-login" className="text-primary hover:underline font-medium">
+                Sports Admin Login
+              </Link>
+              <Link to="/community-admin-login" className="text-primary hover:underline font-medium">
+                Community Admin Login
+              </Link>
+              <Link to="/volunteer-admin-login" className="text-primary hover:underline font-medium">
+                Volunteer Admin Login
               </Link>
               <Link to="/volunteer" className="text-secondary hover:underline font-medium">
                 Volunteer Sign-Up
