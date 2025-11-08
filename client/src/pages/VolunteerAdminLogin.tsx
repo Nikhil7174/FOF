@@ -20,15 +20,16 @@ export default function VolunteerAdminLogin() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      // Find user by email and role
-      const users = await api.listUsers();
-      const user = users.find((u: any) => u.email === email && u.role === "volunteer_admin");
-      if (!user) {
+      // Login with email (backend accepts email as username)
+      const loggedInUser = await login(email, password);
+      
+      // Verify the user is a volunteer admin
+      if (loggedInUser.role !== "volunteer_admin") {
+        await api.logout();
         toast({ title: "Login failed", description: "Invalid email or password", variant: "destructive" });
         return;
       }
-      // Login with username
-      await login(user.username, password);
+      
       toast({ title: "Login Successful", description: "Welcome back!" });
       navigate("/volunteer-admin");
     } catch (err: any) {

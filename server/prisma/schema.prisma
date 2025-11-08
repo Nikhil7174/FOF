@@ -1,0 +1,204 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  community_admin
+  sports_admin
+  volunteer_admin
+  volunteer
+  user
+}
+
+enum Gender {
+  male
+  female
+  mixed
+}
+
+enum ParticipantStatus {
+  pending
+  accepted
+  rejected
+}
+
+enum SportType {
+  individual
+  team
+}
+
+model User {
+  id          String   @id @default(uuid())
+  username    String   @unique
+  email       String?  @unique
+  password    String
+  role        Role
+  communityId String?
+  sportId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  community Community? @relation(fields: [communityId], references: [id])
+  sport     Sport?     @relation(fields: [sportId], references: [id])
+
+  @@index([username])
+  @@index([email])
+}
+
+model Participant {
+  id          String           @id @default(uuid())
+  firstName   String
+  middleName  String?
+  lastName    String
+  gender      Gender
+  dob         DateTime
+  email       String           @unique
+  phone       String
+  communityId String
+  nextOfKin   Json // { firstName, middleName?, lastName, phone }
+  status      ParticipantStatus @default(pending)
+  teamName    String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  community Community         @relation(fields: [communityId], references: [id])
+  sports    ParticipantSport[]
+
+  @@index([email])
+  @@index([communityId])
+}
+
+model ParticipantSport {
+  id            String      @id @default(uuid())
+  participantId String
+  sportId       String
+  createdAt     DateTime    @default(now())
+
+  participant Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  sport       Sport       @relation(fields: [sportId], references: [id])
+
+  @@unique([participantId, sportId])
+  @@index([participantId])
+  @@index([sportId])
+}
+
+model Volunteer {
+  id           String    @id @default(uuid())
+  firstName    String
+  middleName   String?
+  lastName     String
+  gender       Gender
+  dob          DateTime
+  email        String    @unique
+  phone        String
+  departmentId String
+  sportId      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  department Department @relation(fields: [departmentId], references: [id])
+  sport      Sport?     @relation(fields: [sportId], references: [id])
+
+  @@index([email])
+  @@index([departmentId])
+  @@index([sportId])
+}
+
+model Community {
+  id           String    @id @default(uuid())
+  name         String    @unique
+  active       Boolean   @default(true)
+  contactPerson String
+  phone        String
+  email        String    @unique
+  password     String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  users       User[]
+  participants Participant[]
+
+  @@index([name])
+}
+
+model Sport {
+  id             String    @id @default(uuid())
+  name           String
+  active         Boolean   @default(true)
+  type           SportType
+  requiresTeamName Boolean @default(false)
+  parentId       String?
+  venue          String?
+  timings        String?
+  date           DateTime?
+  gender         Gender?
+  ageLimitMin    Int?
+  ageLimitMax    Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  parent        Sport?              @relation("SportHierarchy", fields: [parentId], references: [id])
+  children      Sport[]             @relation("SportHierarchy")
+  users         User[]
+  volunteers    Volunteer[]
+  participants  ParticipantSport[]
+  calendarItems CalendarItem[]
+
+  @@index([parentId])
+  @@index([name])
+}
+
+model Department {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  volunteers Volunteer[]
+}
+
+model CalendarItem {
+  id        String   @id @default(uuid())
+  sportId   String
+  date      DateTime
+  time      String
+  venue     String
+  type      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sport Sport @relation(fields: [sportId], references: [id])
+
+  @@index([sportId])
+  @@index([date])
+}
+
+model Settings {
+  id                String   @id @default(uuid())
+  ageCalculatorDate DateTime
+  updatedAt         DateTime @updatedAt
+}
+
+model Email {
+  id        String   @id @default(uuid())
+  to        String
+  from      String
+  subject   String
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([to])
+  @@index([createdAt])
+}
+
+
+

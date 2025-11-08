@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Check, X, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -14,17 +15,18 @@ export function CommunityParticipantsTable() {
   const queryClient = useQueryClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState<{ open: boolean; participantId: string | null }>({ open: false, participantId: null });
   
-  const { data: participants = [] } = useQuery({
+  const { data: participants = [], isLoading: isLoadingParticipants } = useQuery({
     queryKey: ["participants"],
     queryFn: api.listParticipants,
   });
 
-  const { data: sports = [] } = useQuery({
+  const { data: sports = [], isLoading: isLoadingSports } = useQuery({
     queryKey: ["sports"],
     queryFn: api.listSports,
   });
 
-  const communityParticipants = participants.filter((p: any) => p.communityId === user?.communityId);
+  // Backend already filters by community for community_admin, so use participants directly
+  const communityParticipants = participants;
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: "accepted" | "rejected" }) =>
@@ -61,6 +63,8 @@ export function CommunityParticipantsTable() {
       .map((s: any) => s.name);
   };
 
+  const isLoading = isLoadingParticipants || isLoadingSports;
+
   return (
     <Card>
       <CardHeader>
@@ -81,7 +85,19 @@ export function CommunityParticipantsTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {communityParticipants.length === 0 ? (
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : communityParticipants.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground">
                     No participants registered for this community yet.
@@ -195,5 +211,6 @@ export function CommunityParticipantsTable() {
     </Card>
   );
 }
+
 
 

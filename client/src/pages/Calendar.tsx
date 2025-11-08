@@ -1,10 +1,25 @@
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { calendarEvents } from "@/data/mockData";
+import { api } from "@/api";
+import { useQuery } from "@tanstack/react-query";
 import { Calendar as CalendarIcon, Clock, MapPin } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Calendar() {
+  const { data: calendarEvents = [], isLoading: isLoadingCalendar } = useQuery({
+    queryKey: ["calendar"],
+    queryFn: () => api.listCalendar(),
+  });
+
+  const { data: sports = [] } = useQuery({
+    queryKey: ["sports"],
+    queryFn: () => api.listSports(),
+  });
+
+  // Create a map of sportId to sport name
+  const sportMap = new Map(sports.map((s) => [s.id, s.name]));
+
   // Group events by date
   const groupedEvents = calendarEvents.reduce((acc, event) => {
     if (!acc[event.date]) {
@@ -40,39 +55,56 @@ export default function Calendar() {
         </div>
 
         <div className="max-w-5xl mx-auto space-y-8">
-          {Object.entries(groupedEvents).map(([date, events], dateIndex) => (
-            <div key={date} className="animate-fade-in" style={{ animationDelay: `${dateIndex * 0.1}s` }}>
-              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <CalendarIcon className="h-6 w-6 text-primary" />
-                {formatDate(date)}
-              </h2>
-              
+          {isLoadingCalendar ? (
+            <div className="space-y-4">
+              <Skeleton className="h-8 w-48" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {events.map((event) => (
-                  <Card key={event.id} className="hover:shadow-card transition-shadow">
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <CardTitle className="text-xl">{event.sport}</CardTitle>
-                        <Badge variant={event.type === "Finals" ? "default" : "secondary"}>
-                          {event.type}
-                        </Badge>
-                      </div>
-                      <CardDescription className="flex items-center gap-2">
-                        <Clock className="h-4 w-4" />
-                        {event.time}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <MapPin className="h-4 w-4" />
-                        {event.venue}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                <Skeleton className="h-32" />
+                <Skeleton className="h-32" />
               </div>
             </div>
-          ))}
+          ) : Object.keys(groupedEvents).length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No calendar events available yet.</p>
+            </div>
+          ) : (
+            Object.entries(groupedEvents).map(([date, events], dateIndex) => (
+              <div key={date} className="animate-fade-in" style={{ animationDelay: `${dateIndex * 0.1}s` }}>
+                <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                  <CalendarIcon className="h-6 w-6 text-primary" />
+                  {formatDate(date)}
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {events.map((event) => {
+                    const sportName = sportMap.get(event.sportId) || `Sport ${event.sportId}`;
+                    return (
+                      <Card key={event.id} className="hover:shadow-card transition-shadow">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <CardTitle className="text-xl">{sportName}</CardTitle>
+                            <Badge variant={event.type === "Finals" ? "default" : "secondary"}>
+                              {event.type}
+                            </Badge>
+                          </div>
+                          <CardDescription className="flex items-center gap-2">
+                            <Clock className="h-4 w-4" />
+                            {event.time}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <MapPin className="h-4 w-4" />
+                            {event.venue}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

@@ -2,9 +2,10 @@ import { useMemo, useState, useEffect } from "react";
 import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api";
-import { VolunteerEntry } from "@/api/mockDb";
+import { VolunteerEntry } from "@/types";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,8 +32,8 @@ export function VolunteerManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [volunteerPopoverOpen, setVolunteerPopoverOpen] = useState(false);
   
-  const { data: sports = [] } = useQuery({ queryKey: ["sports"], queryFn: api.listSports });
-  const { data: volunteers = [], isLoading: volunteersLoading } = useQuery({ 
+  const { data: sports = [], isLoading: isLoadingSports } = useQuery({ queryKey: ["sports"], queryFn: api.listSports });
+  const { data: volunteers = [], isLoading: isLoadingVolunteers } = useQuery({ 
     queryKey: ["volunteers"], 
     queryFn: async () => {
       const result = await api.listVolunteers();
@@ -43,7 +44,7 @@ export function VolunteerManagement() {
     staleTime: 0,
     cacheTime: 0,
   });
-  const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: api.listDepartments });
+  const { data: departments = [], isLoading: isLoadingDepartments } = useQuery({ queryKey: ["departments"], queryFn: api.listDepartments });
 
   // Debug: Log volunteers to console
   useEffect(() => {
@@ -285,7 +286,20 @@ export function VolunteerManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
+                {isLoadingVolunteers || isLoadingSports || isLoadingDepartments ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : filtered.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center text-muted-foreground">No volunteers found.</TableCell>
                   </TableRow>

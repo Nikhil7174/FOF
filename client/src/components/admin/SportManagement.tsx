@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api";
-import { SportRecord } from "@/api/mockDb";
+import { SportRecord } from "@/types";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -69,7 +70,7 @@ export function SportManagement() {
   const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
   const queryClient = useQueryClient();
 
-  const { data: sports = [] } = useQuery({
+  const { data: sports = [], isLoading: isLoadingSports } = useQuery({
     queryKey: ["sports"],
     queryFn: api.listSports,
   });
@@ -370,7 +371,21 @@ export function SportManagement() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sports.length === 0 ? (
+            {isLoadingSports ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
+                </TableRow>
+              ))
+            ) : sports.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="text-center text-muted-foreground">
                   No sports found. Create one to get started.

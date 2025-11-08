@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Check, X, Trash2 } from "lucide-react";
 import { useState } from "react";
 
@@ -13,17 +14,18 @@ export function SportParticipantsTable() {
   const queryClient = useQueryClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState<{ open: boolean; participantId: string | null }>({ open: false, participantId: null });
   
-  const { data: participants = [] } = useQuery({
+  const { data: participants = [], isLoading: isLoadingParticipants } = useQuery({
     queryKey: ["participants"],
     queryFn: api.listParticipants,
   });
 
-  const { data: communities = [] } = useQuery({
+  const { data: communities = [], isLoading: isLoadingCommunities } = useQuery({
     queryKey: ["communities"],
     queryFn: api.listCommunities,
   });
 
-  const sportParticipants = participants.filter((p: any) => p.sports?.includes(user?.sportId));
+  // Backend already filters by sport for sports_admin, so use participants directly
+  const sportParticipants = participants;
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: "accepted" | "rejected" }) =>
@@ -53,6 +55,8 @@ export function SportParticipantsTable() {
     deleteMutation.mutate(id);
   };
 
+  const isLoading = isLoadingParticipants || isLoadingCommunities;
+
   return (
     <Card>
       <CardHeader>
@@ -73,7 +77,19 @@ export function SportParticipantsTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sportParticipants.length === 0 ? (
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : sportParticipants.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground">
                     No participants registered for this sport yet.

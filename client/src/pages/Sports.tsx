@@ -1,7 +1,7 @@
 import { Navbar } from "@/components/Navbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { convenors, sportsRules } from "@/data/mockData";
+import { convenors, sportsRules } from "@/data/constants";
 import { Trophy, Phone, Mail, BookOpen } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 

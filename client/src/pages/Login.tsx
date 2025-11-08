@@ -21,11 +21,10 @@ export default function Login() {
     const password = String(form.get("password") || "");
     try {
       // demo users: admin/admin, nairobi/community, volunteer/volunteer
-      await login(username, password);
+      const user = await login(username, password);
       toast({ title: "Login Successful", description: "Welcome back to FOF 2026!" });
-      // Read role from local session via api.me() indirectly; quick fetch
-      const me = await (await import("@/api")).api.me();
-      const role = (me as any)?.role;
+      // Use the user object returned from login
+      const role = user.role;
       if (role === "admin") navigate("/admin");
       else if (role === "community_admin") navigate("/community");
       else if (role === "sports_admin") navigate("/sports-admin");

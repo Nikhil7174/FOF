@@ -32,15 +32,16 @@ export default function CommunityAdminLogin() {
       return;
     }
     try {
-      // Find user by email and communityId
-      const users = await api.listUsers();
-      const user = users.find((u: any) => u.email === email && u.communityId === selectedCommunityId && u.role === "community_admin");
-      if (!user) {
+      // Login with email (backend accepts email as username)
+      const loggedInUser = await login(email, password);
+      
+      // Verify the user is a community admin for the selected community
+      if (loggedInUser.role !== "community_admin" || loggedInUser.communityId !== selectedCommunityId) {
+        await api.logout();
         toast({ title: "Login failed", description: "Invalid email or community selection", variant: "destructive" });
         return;
       }
-      // Login with username
-      await login(user.username, password);
+      
       toast({ title: "Login Successful", description: "Welcome back!" });
       navigate("/community");
     } catch (err: any) {
@@ -95,5 +96,6 @@ export default function CommunityAdminLogin() {
     </div>
   );
 }
+
 
 

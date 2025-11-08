@@ -32,15 +32,16 @@ export default function SportsAdminLogin() {
       return;
     }
     try {
-      // Find user by email and sportId
-      const users = await api.listUsers();
-      const user = users.find((u: any) => u.email === email && u.sportId === selectedSportId && u.role === "sports_admin");
-      if (!user) {
+      // Login with email (backend accepts email as username)
+      const loggedInUser = await login(email, password);
+      
+      // Verify the user is a sports admin for the selected sport
+      if (loggedInUser.role !== "sports_admin" || loggedInUser.sportId !== selectedSportId) {
+        await api.logout();
         toast({ title: "Login failed", description: "Invalid email or sport selection", variant: "destructive" });
         return;
       }
-      // Login with username (we'll need to modify login to also accept email)
-      await login(user.username, password);
+      
       toast({ title: "Login Successful", description: "Welcome back!" });
       navigate("/sports-admin");
     } catch (err: any) {

@@ -4,18 +4,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { departments } from "@/data/mockData";
+import { api } from "@/api";
+import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Heart } from "lucide-react";
-import { api } from "@/api";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Volunteer() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [gender, setGender] = useState<string>("");
   const [departmentId, setDepartmentId] = useState<string>("");
+
+  const { data: departments = [], isLoading: isLoadingDepartments } = useQuery({
+    queryKey: ["departments"],
+    queryFn: () => api.listDepartments(),
+  });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -122,18 +128,22 @@ export default function Volunteer() {
 
                 <div className="space-y-2">
                   <Label htmlFor="department">Preferred Department *</Label>
-                  <Select required onValueChange={setDepartmentId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept.id} value={dept.id}>
-                          {dept.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isLoadingDepartments ? (
+                    <Skeleton className="h-10" />
+                  ) : (
+                    <Select required onValueChange={setDepartmentId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id}>
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 <div className="pt-4 border-t">
