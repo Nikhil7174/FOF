@@ -12,6 +12,9 @@ import departmentRoutes from "./routes/departments";
 import calendarRoutes from "./routes/calendar";
 import settingsRoutes from "./routes/settings";
 import emailRoutes from "./routes/email";
+import communityContactRoutes from "./routes/community-contacts";
+import convenorRoutes from "./routes/convenors";
+import tournamentFormatRoutes from "./routes/tournament-formats";
 import { errorHandler } from "./middleware/errorHandler";
 
 dotenv.config();
@@ -48,6 +51,9 @@ app.use("/api/departments", departmentRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/email", emailRoutes);
+app.use("/api/community-contacts", communityContactRoutes);
+app.use("/api/convenors", convenorRoutes);
+app.use("/api/tournament-formats", tournamentFormatRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

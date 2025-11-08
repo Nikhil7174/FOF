@@ -1,7 +1,7 @@
 // API client for backend server
 
 // Import types from shared types file
-import type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord } from "@/types";
+import type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat } from "@/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
@@ -49,7 +49,7 @@ async function request<T>(
 }
 
 // Re-export types for convenience
-export type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord };
+export type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat };
 
 // API methods
 export const api = {
@@ -290,6 +290,126 @@ export const api = {
 
   async listOutbox(): Promise<Array<{ id: string; to: string; from: string; subject: string; body: string; createdAt: string }>> {
     return request<Array<{ id: string; to: string; from: string; subject: string; body: string; createdAt: string }>>("/email/outbox");
+  },
+
+  // Community Contacts
+  async listCommunityContacts(communityId: string): Promise<CommunityContact[]> {
+    return request<CommunityContact[]>(`/community-contacts/community/${communityId}`);
+  },
+
+  async createCommunityContact(communityId: string, input: Omit<CommunityContact, "id" | "communityId" | "createdAt" | "updatedAt">): Promise<CommunityContact> {
+    return request<CommunityContact>(`/community-contacts/community/${communityId}`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateCommunityContact(id: string, input: Partial<Omit<CommunityContact, "id" | "communityId" | "createdAt" | "updatedAt">>): Promise<CommunityContact> {
+    return request<CommunityContact>(`/community-contacts/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteCommunityContact(id: string): Promise<boolean> {
+    await request(`/community-contacts/${id}`, { method: "DELETE" });
+    return true;
+  },
+
+  // Calendar
+  async getCalendarItem(id: string): Promise<CalendarItem> {
+    return request<CalendarItem>(`/calendar/${id}`);
+  },
+
+  async createCalendarItem(input: Omit<CalendarItem, "id">): Promise<CalendarItem> {
+    return request<CalendarItem>("/calendar", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateCalendarItem(id: string, input: Partial<Omit<CalendarItem, "id">>): Promise<CalendarItem> {
+    return request<CalendarItem>(`/calendar/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteCalendarItem(id: string): Promise<boolean> {
+    await request(`/calendar/${id}`, { method: "DELETE" });
+    return true;
+  },
+
+  // Convenors
+  async listConvenors(): Promise<Convenor[]> {
+    return request<Convenor[]>("/convenors");
+  },
+
+  async getConvenor(id: string): Promise<Convenor> {
+    return request<Convenor>(`/convenors/${id}`);
+  },
+
+  async getConvenorBySport(sportId: string): Promise<Convenor | null> {
+    try {
+      return await request<Convenor>(`/convenors/sport/${sportId}`);
+    } catch {
+      return null;
+    }
+  },
+
+  async createConvenor(input: Omit<Convenor, "id" | "createdAt" | "updatedAt">): Promise<Convenor> {
+    return request<Convenor>("/convenors", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateConvenor(id: string, input: Partial<Omit<Convenor, "id" | "createdAt" | "updatedAt">>): Promise<Convenor> {
+    return request<Convenor>(`/convenors/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteConvenor(id: string): Promise<boolean> {
+    await request(`/convenors/${id}`, { method: "DELETE" });
+    return true;
+  },
+
+  // Tournament Formats
+  async listTournamentFormats(): Promise<TournamentFormat[]> {
+    return request<TournamentFormat[]>("/tournament-formats");
+  },
+
+  async getTournamentFormat(id: string): Promise<TournamentFormat> {
+    return request<TournamentFormat>(`/tournament-formats/${id}`);
+  },
+
+  async getTournamentFormatByCategory(category: string): Promise<TournamentFormat | null> {
+    try {
+      return await request<TournamentFormat>(`/tournament-formats/category/${category}`);
+    } catch {
+      return null;
+    }
+  },
+
+  async createTournamentFormat(input: Omit<TournamentFormat, "id" | "createdAt" | "updatedAt">): Promise<TournamentFormat> {
+    return request<TournamentFormat>("/tournament-formats", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateTournamentFormat(id: string, input: Partial<Omit<TournamentFormat, "id" | "createdAt" | "updatedAt">>): Promise<TournamentFormat> {
+    return request<TournamentFormat>(`/tournament-formats/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteTournamentFormat(id: string): Promise<boolean> {
+    await request(`/tournament-formats/${id}`, { method: "DELETE" });
+    return true;
   },
 };
 

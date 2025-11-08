@@ -126,6 +126,7 @@ model Community {
 
   users       User[]
   participants Participant[]
+  contacts    CommunityContact[]
 
   @@index([name])
 }
@@ -143,6 +144,8 @@ model Sport {
   gender         Gender?
   ageLimitMin    Int?
   ageLimitMax    Int?
+  convenorId     String?   @unique
+  rules          String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -152,9 +155,11 @@ model Sport {
   volunteers    Volunteer[]
   participants  ParticipantSport[]
   calendarItems CalendarItem[]
+  convenor      Convenor?           @relation(fields: [convenorId], references: [id])
 
   @@index([parentId])
   @@index([name])
+  @@index([convenorId])
 }
 
 model Department {
@@ -198,6 +203,46 @@ model Email {
 
   @@index([to])
   @@index([createdAt])
+}
+
+model CommunityContact {
+  id          String    @id @default(uuid())
+  communityId String
+  name        String
+  phone       String
+  email       String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@index([communityId])
+}
+
+model Convenor {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String
+  email     String
+  sportId   String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sport Sport?
+
+  @@index([sportId])
+}
+
+model TournamentFormat {
+  id        String   @id @default(uuid())
+  category  String   // e.g., "team_sports", "individual_sports", "points_system"
+  title     String
+  content   String   // Markdown or plain text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([category])
+  @@index([category])
 }
 
 

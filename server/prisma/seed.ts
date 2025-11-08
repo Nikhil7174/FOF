@@ -73,49 +73,109 @@ async function main() {
   // Create sports
   const sport1 = await prisma.sport.upsert({
     where: { id: "1" },
-    update: {},
+    update: {
+      rules: `**Football Rules - FOF 2026**
+
+1. Each match will consist of two 30-minute halves
+2. Teams must have 11 players on the field
+3. Standard FIFA rules apply
+4. Fair play and sportsmanship are mandatory
+5. Yellow and red card system will be enforced`,
+    },
     create: {
       id: "1",
       name: "Football",
       active: true,
       type: SportType.team,
       requiresTeamName: true,
+      rules: `**Football Rules - FOF 2026**
+
+1. Each match will consist of two 30-minute halves
+2. Teams must have 11 players on the field
+3. Standard FIFA rules apply
+4. Fair play and sportsmanship are mandatory
+5. Yellow and red card system will be enforced`,
     },
   });
 
   const sport2 = await prisma.sport.upsert({
     where: { id: "2" },
-    update: {},
+    update: {
+      rules: `**Basketball Rules - FOF 2026**
+
+1. Games consist of four 10-minute quarters
+2. Five players per team on court
+3. Standard FIBA rules apply
+4. Shot clock: 24 seconds
+5. Three-point line distance: 6.75m`,
+    },
     create: {
       id: "2",
       name: "Basketball",
       active: true,
       type: SportType.team,
       requiresTeamName: true,
+      rules: `**Basketball Rules - FOF 2026**
+
+1. Games consist of four 10-minute quarters
+2. Five players per team on court
+3. Standard FIBA rules apply
+4. Shot clock: 24 seconds
+5. Three-point line distance: 6.75m`,
     },
   });
 
   const sport4 = await prisma.sport.upsert({
     where: { id: "4" },
-    update: {},
+    update: {
+      rules: `**Athletics Rules - FOF 2026**
+
+1. All events follow IAAF regulations
+2. Participants must report 30 minutes before their event
+3. Proper athletic attire required
+4. False starts result in disqualification
+5. Results based on timing/distance measurements`,
+    },
     create: {
       id: "4",
       name: "Athletics",
       active: true,
       type: SportType.individual,
       requiresTeamName: false,
+      rules: `**Athletics Rules - FOF 2026**
+
+1. All events follow IAAF regulations
+2. Participants must report 30 minutes before their event
+3. Proper athletic attire required
+4. False starts result in disqualification
+5. Results based on timing/distance measurements`,
     },
   });
 
   const sport10 = await prisma.sport.upsert({
     where: { id: "10" },
-    update: {},
+    update: {
+      rules: `**Badminton Rules - FOF 2026**
+
+1. Best of 3 sets format
+2. First to 21 points wins a set (must win by 2)
+3. Standard BWF rules apply
+4. Proper badminton shoes required
+5. Shuttlecock provided by organizers`,
+    },
     create: {
       id: "10",
       name: "Badminton",
       active: true,
       type: SportType.individual,
       requiresTeamName: false,
+      rules: `**Badminton Rules - FOF 2026**
+
+1. Best of 3 sets format
+2. First to 21 points wins a set (must win by 2)
+3. Standard BWF rules apply
+4. Proper badminton shoes required
+5. Shuttlecock provided by organizers`,
     },
   });
 
@@ -355,8 +415,15 @@ async function main() {
     },
   });
 
-  await prisma.participantSport.create({
-    data: {
+  await prisma.participantSport.upsert({
+    where: {
+      participantId_sportId: {
+        participantId: participant1.id,
+        sportId: "1",
+      },
+    },
+    update: {},
+    create: {
       participantId: participant1.id,
       sportId: "1",
     },
@@ -388,6 +455,7 @@ async function main() {
       { participantId: participant2.id, sportId: "2" },
       { participantId: participant2.id, sportId: "4" },
     ],
+    skipDuplicates: true,
   });
 
   // Create volunteers
@@ -529,6 +597,145 @@ async function main() {
       time: "11:00",
       venue: "Sports Complex A",
       type: "Group",
+    },
+  });
+
+  // Create community contacts (using createMany with skipDuplicates)
+  await prisma.communityContact.createMany({
+    data: [
+      {
+        id: "cc1",
+        communityId: "1",
+        name: "Ahmed Hassan",
+        phone: "+254 712 111 111",
+        email: "nairobi.central@fof.co.ke",
+      },
+      {
+        id: "cc2",
+        communityId: "1",
+        name: "Fatima Ali",
+        phone: "+254 712 111 112",
+        email: "fatima.ali@fof.co.ke",
+      },
+      {
+        id: "cc3",
+        communityId: "2",
+        name: "Jennifer Muthoni",
+        phone: "+254 723 222 222",
+        email: "westlands@fof.co.ke",
+      },
+    ],
+    skipDuplicates: true,
+  });
+
+  // Create convenors
+  const convenor1 = await prisma.convenor.upsert({
+    where: { id: "conv1" },
+    update: {},
+    create: {
+      id: "conv1",
+      name: "John Kamau",
+      phone: "+254 712 345 678",
+      email: "j.kamau@fof.co.ke",
+      sportId: "1",
+    },
+  });
+
+  // Update sport to link convenor
+  await prisma.sport.update({
+    where: { id: "1" },
+    data: { convenorId: convenor1.id },
+  });
+
+  const convenor2 = await prisma.convenor.upsert({
+    where: { id: "conv2" },
+    update: {},
+    create: {
+      id: "conv2",
+      name: "Sarah Wanjiku",
+      phone: "+254 723 456 789",
+      email: "s.wanjiku@fof.co.ke",
+      sportId: "2",
+    },
+  });
+
+  await prisma.sport.update({
+    where: { id: "2" },
+    data: { convenorId: convenor2.id },
+  });
+
+  const convenor3 = await prisma.convenor.upsert({
+    where: { id: "conv3" },
+    update: {},
+    create: {
+      id: "conv3",
+      name: "Grace Akinyi",
+      phone: "+254 745 678 901",
+      email: "g.akinyi@fof.co.ke",
+      sportId: "4",
+    },
+  });
+
+  await prisma.sport.update({
+    where: { id: "4" },
+    data: { convenorId: convenor3.id },
+  });
+
+  const convenor4 = await prisma.convenor.upsert({
+    where: { id: "conv4" },
+    update: {},
+    create: {
+      id: "conv4",
+      name: "James Otieno",
+      phone: "+254 778 901 234",
+      email: "j.otieno@fof.co.ke",
+      sportId: "10",
+    },
+  });
+
+  await prisma.sport.update({
+    where: { id: "10" },
+    data: { convenorId: convenor4.id },
+  });
+
+  // Create tournament formats
+  await prisma.tournamentFormat.upsert({
+    where: { category: "team_sports" },
+    update: {},
+    create: {
+      category: "team_sports",
+      title: "Team Sports",
+      content: `Football, Basketball, Volleyball, and Cricket will follow a round-robin group stage followed by knockout semifinals and finals.
+
+The group stage will determine seeding for the knockout rounds. Top teams from each group advance to the semifinals.`,
+    },
+  });
+
+  await prisma.tournamentFormat.upsert({
+    where: { category: "individual_sports" },
+    update: {},
+    create: {
+      category: "individual_sports",
+      title: "Individual Sports",
+      content: `Athletics, Swimming, Table Tennis, and Badminton will have preliminary heats, followed by quarterfinals, semifinals, and finals based on timing/scores.
+
+Participants will be seeded based on preliminary performance. Top performers advance through each round.`,
+    },
+  });
+
+  await prisma.tournamentFormat.upsert({
+    where: { category: "points_system" },
+    update: {},
+    create: {
+      category: "points_system",
+      title: "Points System",
+      content: `Communities earn points based on rankings:
+- Gold Medal: 10 points
+- Silver Medal: 7 points
+- Bronze Medal: 5 points
+- Participation: 3 points per sport
+
+The community with the highest total points wins the overall championship.`,
     },
   });
 

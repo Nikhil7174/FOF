@@ -8,6 +8,8 @@ import { SportManagement } from "@/components/admin/SportManagement";
 import { CommunityManagement } from "@/components/admin/CommunityManagement";
 import { UserManagement } from "@/components/admin/UserManagement";
 import { VolunteerManagement } from "@/components/admin/VolunteerManagement";
+import { CalendarManagement } from "@/components/admin/CalendarManagement";
+import { TournamentFormatsManagement } from "@/components/admin/TournamentFormatsManagement";
 
 export default function AdminDashboard() {
   const { data: participants = [], isLoading: isLoadingParticipants } = useQuery({ queryKey: ["participants"], queryFn: api.listParticipants });
@@ -33,6 +35,8 @@ export default function AdminDashboard() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="sports">Sports</TabsTrigger>
             <TabsTrigger value="communities">Communities</TabsTrigger>
+            <TabsTrigger value="calendar">Calendar</TabsTrigger>
+            <TabsTrigger value="formats">Tournament Formats</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="volunteers">Volunteers</TabsTrigger>
           </TabsList>
@@ -89,6 +93,14 @@ export default function AdminDashboard() {
 
           <TabsContent value="users">
             <UserManagement />
+          </TabsContent>
+
+          <TabsContent value="calendar">
+            <CalendarManagement />
+          </TabsContent>
+
+          <TabsContent value="formats">
+            <TournamentFormatsManagement />
           </TabsContent>
 
           <TabsContent value="volunteers">

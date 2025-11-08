@@ -18,6 +18,7 @@ const createSportSchema = z.object({
   gender: z.enum(["male", "female", "mixed"]).optional().nullable(),
   ageLimitMin: z.number().optional(),
   ageLimitMax: z.number().optional(),
+  rules: z.string().optional(),
 });
 
 // List all sports
@@ -115,6 +116,7 @@ router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req:
         gender: data.gender as Gender | null,
         ageLimitMin: data.ageLimitMin,
         ageLimitMax: data.ageLimitMax,
+        rules: data.rules,
       },
     });
 

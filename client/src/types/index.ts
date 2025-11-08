@@ -67,6 +67,7 @@ export interface SportRecord {
   };
   ageLimitMin?: number; // Alternative format
   ageLimitMax?: number; // Alternative format
+  rules?: string;
 }
 
 export interface CommunityRecord {
@@ -95,5 +96,35 @@ export interface CalendarItem {
 
 export interface SettingsRecord {
   ageCalculatorDate: string;
+}
+
+export interface CommunityContact {
+  id: string;
+  communityId: string;
+  name: string;
+  phone: string;
+  email: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Convenor {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  sportId?: string;
+  sport?: SportRecord;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TournamentFormat {
+  id: string;
+  category: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
 }
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api";
-import { SportRecord } from "@/types";
+import { SportRecord, Convenor } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -58,6 +59,10 @@ const sportSchema = z.object({
   gender: z.enum(["male", "female", "mixed"]).optional().nullable(),
   ageLimitMin: z.coerce.number().optional(),
   ageLimitMax: z.coerce.number().optional(),
+  rules: z.string().optional(),
+  convenorName: z.string().optional(),
+  convenorPhone: z.string().optional(),
+  convenorEmail: z.string().email().optional().or(z.literal("")),
 });
 
 type SportFormData = z.infer<typeof sportSchema>;
@@ -75,6 +80,11 @@ export function SportManagement() {
     queryFn: api.listSports,
   });
 
+  const { data: convenors = [] } = useQuery({
+    queryKey: ["convenors"],
+    queryFn: api.listConvenors,
+  });
+
   const form = useForm<SportFormData>({
     resolver: zodResolver(sportSchema),
     defaultValues: {
@@ -89,11 +99,15 @@ export function SportManagement() {
       gender: null,
       ageLimitMin: undefined,
       ageLimitMax: undefined,
+      rules: "",
+      convenorName: "",
+      convenorPhone: "",
+      convenorEmail: "",
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: SportFormData) => {
+    mutationFn: async (data: SportFormData) => {
       const sportData: Omit<SportRecord, "id"> = {
         name: data.name,
         type: data.type,
@@ -110,18 +124,32 @@ export function SportManagement() {
               max: data.ageLimitMax,
             }
           : undefined,
+        rules: data.rules || undefined,
       };
-      return api.createSport(sportData);
+      const sport = await api.createSport(sportData);
+      
+      // Create convenor if provided
+      if (data.convenorName && data.convenorPhone && data.convenorEmail) {
+        await api.createConvenor({
+          name: data.convenorName,
+          phone: data.convenorPhone,
+          email: data.convenorEmail,
+          sportId: sport.id,
+        });
+      }
+      
+      return sport;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sports"] });
+      queryClient.invalidateQueries({ queryKey: ["convenors"] });
       setDialogOpen(false);
       form.reset();
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<SportFormData> }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Partial<SportFormData> }) => {
       const sportData: Partial<Omit<SportRecord, "id">> = {};
       if (data.name !== undefined) sportData.name = data.name;
       if (data.type !== undefined) sportData.type = data.type;
@@ -138,10 +166,38 @@ export function SportManagement() {
           max: data.ageLimitMax,
         };
       }
-      return api.updateSport(id, sportData);
+      if (data.rules !== undefined) sportData.rules = data.rules || undefined;
+      
+      const sport = await api.updateSport(id, sportData);
+      
+      // Handle convenor update - fetch current convenors
+      const currentConvenors = await api.listConvenors();
+      const existingConvenor = currentConvenors.find(c => c.sportId === id);
+      if (data.convenorName && data.convenorPhone && data.convenorEmail) {
+        if (existingConvenor) {
+          await api.updateConvenor(existingConvenor.id, {
+            name: data.convenorName,
+            phone: data.convenorPhone,
+            email: data.convenorEmail,
+          });
+        } else {
+          await api.createConvenor({
+            name: data.convenorName,
+            phone: data.convenorPhone,
+            email: data.convenorEmail,
+            sportId: id,
+          });
+        }
+      } else if (existingConvenor && (!data.convenorName || !data.convenorPhone || !data.convenorEmail)) {
+        // Remove convenor if fields are cleared
+        await api.deleteConvenor(existingConvenor.id);
+      }
+      
+      return sport;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sports"] });
+      queryClient.invalidateQueries({ queryKey: ["convenors"] });
       setDialogOpen(false);
       setEditingSport(null);
       form.reset();
@@ -160,6 +216,7 @@ export function SportManagement() {
   const handleOpenDialog = (sport?: SportRecord) => {
     if (sport) {
       setEditingSport(sport);
+      const convenor = convenors.find(c => c.sportId === sport.id);
       form.reset({
         name: sport.name,
         type: sport.type,
@@ -172,6 +229,10 @@ export function SportManagement() {
         gender: sport.gender || null,
         ageLimitMin: sport.ageLimit?.min,
         ageLimitMax: sport.ageLimit?.max,
+        rules: sport.rules || "",
+        convenorName: convenor?.name || "",
+        convenorPhone: convenor?.phone || "",
+        convenorEmail: convenor?.email || "",
       });
     } else {
       setEditingSport(null);
@@ -316,6 +377,36 @@ export function SportManagement() {
                       placeholder="Max age"
                       {...form.register("ageLimitMax", { valueAsNumber: true })}
                     />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="rules">Rules</Label>
+                <Textarea
+                  id="rules"
+                  {...form.register("rules")}
+                  placeholder="Enter sport rules (supports markdown)"
+                  rows={6}
+                />
+              </div>
+
+              <div className="space-y-4 border-t pt-4">
+                <Label className="text-base font-semibold">Convenor Information</Label>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="convenorName">Convenor Name</Label>
+                    <Input id="convenorName" {...form.register("convenorName")} placeholder="Convenor name" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="convenorPhone">Convenor Phone</Label>
+                      <Input id="convenorPhone" {...form.register("convenorPhone")} placeholder="Phone number" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="convenorEmail">Convenor Email</Label>
+                      <Input id="convenorEmail" type="email" {...form.register("convenorEmail")} placeholder="Email address" />
+                    </div>
                   </div>
                 </div>
               </div>

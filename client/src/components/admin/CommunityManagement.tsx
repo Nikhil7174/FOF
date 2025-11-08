@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api";
-import { CommunityRecord } from "@/types";
+import { CommunityRecord, CommunityContact } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -34,7 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Edit, Trash2, Users } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -50,11 +51,25 @@ const communitySchema = z.object({
 
 type CommunityFormData = z.infer<typeof communitySchema>;
 
+const contactSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  phone: z.string().min(1, "Phone is required"),
+  email: z.string().email("Invalid email address"),
+});
+
+type ContactFormData = z.infer<typeof contactSchema>;
+
 export function CommunityManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCommunity, setEditingCommunity] = useState<CommunityRecord | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [communityToDelete, setCommunityToDelete] = useState<CommunityRecord | null>(null);
+  const [contactsDialogOpen, setContactsDialogOpen] = useState(false);
+  const [selectedCommunity, setSelectedCommunity] = useState<CommunityRecord | null>(null);
+  const [contactDialogOpen, setContactDialogOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState<CommunityContact | null>(null);
+  const [deleteContactDialogOpen, setDeleteContactDialogOpen] = useState(false);
+  const [contactToDelete, setContactToDelete] = useState<CommunityContact | null>(null);
   const queryClient = useQueryClient();
 
   const { data: communities = [] } = useQuery({
@@ -148,6 +163,94 @@ export function CommunityManagement() {
   const confirmDelete = () => {
     if (communityToDelete) {
       deleteMutation.mutate(communityToDelete.id);
+    }
+  };
+
+  // Contact management
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["community-contacts", selectedCommunity?.id],
+    queryFn: () => selectedCommunity ? api.listCommunityContacts(selectedCommunity.id) : [],
+    enabled: !!selectedCommunity,
+  });
+
+  const contactForm = useForm<ContactFormData>({
+    resolver: zodResolver(contactSchema),
+    defaultValues: {
+      name: "",
+      phone: "",
+      email: "",
+    },
+  });
+
+  const createContactMutation = useMutation({
+    mutationFn: (data: ContactFormData) => {
+      if (!selectedCommunity) throw new Error("No community selected");
+      return api.createCommunityContact(selectedCommunity.id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community-contacts", selectedCommunity?.id] });
+      setContactDialogOpen(false);
+      contactForm.reset();
+    },
+  });
+
+  const updateContactMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<ContactFormData> }) => {
+      return api.updateCommunityContact(id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community-contacts", selectedCommunity?.id] });
+      setContactDialogOpen(false);
+      setEditingContact(null);
+      contactForm.reset();
+    },
+  });
+
+  const deleteContactMutation = useMutation({
+    mutationFn: (id: string) => api.deleteCommunityContact(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community-contacts", selectedCommunity?.id] });
+      setDeleteContactDialogOpen(false);
+      setContactToDelete(null);
+    },
+  });
+
+  const handleOpenContactsDialog = (community: CommunityRecord) => {
+    setSelectedCommunity(community);
+    setContactsDialogOpen(true);
+  };
+
+  const handleOpenContactDialog = (contact?: CommunityContact) => {
+    if (contact) {
+      setEditingContact(contact);
+      contactForm.reset({
+        name: contact.name,
+        phone: contact.phone,
+        email: contact.email,
+      });
+    } else {
+      setEditingContact(null);
+      contactForm.reset();
+    }
+    setContactDialogOpen(true);
+  };
+
+  const handleSubmitContact = (data: ContactFormData) => {
+    if (editingContact) {
+      updateContactMutation.mutate({ id: editingContact.id, data });
+    } else {
+      createContactMutation.mutate(data);
+    }
+  };
+
+  const handleDeleteContact = (contact: CommunityContact) => {
+    setContactToDelete(contact);
+    setDeleteContactDialogOpen(true);
+  };
+
+  const confirmDeleteContact = () => {
+    if (contactToDelete) {
+      deleteContactMutation.mutate(contactToDelete.id);
     }
   };
 
@@ -286,6 +389,14 @@ export function CommunityManagement() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => handleOpenContactsDialog(community)}
+                        title="Manage Contacts"
+                      >
+                        <Users className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleOpenDialog(community)}
                       >
                         <Edit className="h-4 w-4" />
@@ -319,6 +430,137 @@ export function CommunityManagement() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Contacts Management Dialog */}
+      <Dialog open={contactsDialogOpen} onOpenChange={setContactsDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage Contacts - {selectedCommunity?.name}</DialogTitle>
+            <DialogDescription>
+              Add, edit, or remove contact persons for this community.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <Button onClick={() => handleOpenContactDialog()}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Contact
+              </Button>
+            </div>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {contacts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        No contacts found. Add one to get started.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    contacts.map((contact) => (
+                      <TableRow key={contact.id}>
+                        <TableCell className="font-medium">{contact.name}</TableCell>
+                        <TableCell>{contact.phone}</TableCell>
+                        <TableCell>{contact.email}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenContactDialog(contact)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeleteContact(contact)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add/Edit Contact Dialog */}
+      <Dialog open={contactDialogOpen} onOpenChange={setContactDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingContact ? "Edit Contact" : "Add New Contact"}</DialogTitle>
+            <DialogDescription>
+              {editingContact ? "Update the contact details below." : "Fill in the details to add a new contact."}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={contactForm.handleSubmit(handleSubmitContact)} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="contact-name">Name *</Label>
+              <Input id="contact-name" {...contactForm.register("name")} placeholder="Contact name" />
+              {contactForm.formState.errors.name && (
+                <p className="text-sm text-destructive">{contactForm.formState.errors.name.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contact-phone">Phone *</Label>
+              <Input id="contact-phone" {...contactForm.register("phone")} placeholder="Phone number" />
+              {contactForm.formState.errors.phone && (
+                <p className="text-sm text-destructive">{contactForm.formState.errors.phone.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contact-email">Email *</Label>
+              <Input id="contact-email" type="email" {...contactForm.register("email")} placeholder="Email address" />
+              {contactForm.formState.errors.email && (
+                <p className="text-sm text-destructive">{contactForm.formState.errors.email.message}</p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setContactDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createContactMutation.isPending || updateContactMutation.isPending}>
+                {editingContact ? "Update" : "Add"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Contact Dialog */}
+      <AlertDialog open={deleteContactDialogOpen} onOpenChange={setDeleteContactDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the contact "{contactToDelete?.name}".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteContact}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
