@@ -18,6 +18,11 @@ export async function authenticate(
   res: Response,
   next: NextFunction
 ) {
+  // Skip authentication for OPTIONS requests (preflight)
+  if (req.method === "OPTIONS") {
+    return next();
+  }
+
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
