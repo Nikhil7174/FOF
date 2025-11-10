@@ -52,58 +52,60 @@ export default function AdminDashboard() {
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
         
-        <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="sports">Sports</TabsTrigger>
-            <TabsTrigger value="communities">Communities</TabsTrigger>
-            <TabsTrigger value="calendar">Calendar</TabsTrigger>
-            <TabsTrigger value="formats">Tournament Formats</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="volunteers">Volunteers</TabsTrigger>
+        <Tabs defaultValue="overview" orientation="vertical" className="flex flex-col md:flex-row gap-6">
+          <TabsList className="flex flex-col gap-2 w-full md:w-64 bg-muted/40 p-2 rounded-lg h-fit">
+            <TabsTrigger value="overview" className="justify-start">Overview</TabsTrigger>
+            <TabsTrigger value="sports" className="justify-start">Sports</TabsTrigger>
+            <TabsTrigger value="communities" className="justify-start">Communities</TabsTrigger>
+            <TabsTrigger value="calendar" className="justify-start">Calendar</TabsTrigger>
+            <TabsTrigger value="formats" className="justify-start">Tournament Formats</TabsTrigger>
+            <TabsTrigger value="users" className="justify-start">Users</TabsTrigger>
+            <TabsTrigger value="volunteers" className="justify-start">Volunteers</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview" className="space-y-4">
-            {isLoading ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Skeleton className="h-24" />
-                <Skeleton className="h-24" />
-                <Skeleton className="h-24" />
-                <Skeleton className="h-24" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Stat title="Users" value={users.length} />
-                <Stat title="Volunteers" value={volunteers.length} />
-                <Stat title="Sports" value={sports.length} />
-                <Stat title="Communities" value={communities.length} />
-              </div>
-            )}
-          </TabsContent>
+          <div className="flex-1 space-y-6">
+            <TabsContent value="overview" className="space-y-4">
+              {isLoading ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Skeleton className="h-24" />
+                  <Skeleton className="h-24" />
+                  <Skeleton className="h-24" />
+                  <Skeleton className="h-24" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Stat title="Users" value={users.length} />
+                  <Stat title="Volunteers" value={volunteers.length} />
+                  <Stat title="Sports" value={sports.length} />
+                  <Stat title="Communities" value={communities.length} />
+                </div>
+              )}
+            </TabsContent>
 
-          <TabsContent value="sports">
-            <SportManagement />
-          </TabsContent>
+            <TabsContent value="sports">
+              <SportManagement />
+            </TabsContent>
 
-          <TabsContent value="communities">
-            <CommunityManagement />
-          </TabsContent>
+            <TabsContent value="communities">
+              <CommunityManagement />
+            </TabsContent>
 
-          <TabsContent value="users">
-            <UserManagement />
-          </TabsContent>
+            <TabsContent value="users">
+              <UserManagement />
+            </TabsContent>
 
-          <TabsContent value="calendar">
-            <CalendarManagement />
-          </TabsContent>
+            <TabsContent value="calendar">
+              <CalendarManagement />
+            </TabsContent>
 
-          <TabsContent value="formats">
-            <TournamentFormatsManagement />
-          </TabsContent>
+            <TabsContent value="formats">
+              <TournamentFormatsManagement />
+            </TabsContent>
 
-          <TabsContent value="volunteers">
-            <VolunteerManagement />
-          </TabsContent>
+            <TabsContent value="volunteers">
+              <VolunteerManagement />
+            </TabsContent>
+          </div>
         </Tabs>
       </div>
     </div>
