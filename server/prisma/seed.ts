@@ -1,7 +1,23 @@
 import { PrismaClient, Role, Gender, ParticipantStatus, SportType, MedalType } from "@prisma/client";
 import bcrypt from "bcrypt";
+import { normalizeDatabaseUrl } from "../src/utils/database";
 
-const prisma = new PrismaClient();
+const databaseUrl = normalizeDatabaseUrl(process.env.DATABASE_URL);
+
+try {
+  const { hostname, port, protocol } = new URL(databaseUrl);
+  console.log(`Seeding database via: ${protocol}//${hostname}${port ? `:${port}` : ""}`);
+} catch (error) {
+  console.warn("Unable to determine database connection target for seeding:", error);
+}
+
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: databaseUrl,
+    },
+  },
+});
 
 const SALT_ROUNDS = 10;
 

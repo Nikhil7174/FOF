@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
+import { normalizeDatabaseUrl } from "./utils/database";
 import authRoutes from "./routes/auth";
 import participantRoutes from "./routes/participants";
 import volunteerRoutes from "./routes/volunteers";
@@ -21,6 +22,15 @@ import { verifyEmailConfig } from "./utils/email";
 
 dotenv.config();
 
+const databaseUrl = normalizeDatabaseUrl(process.env.DATABASE_URL);
+
+try {
+  const { hostname, port, protocol } = new URL(databaseUrl);
+  console.log(`Database connection target: ${protocol}//${hostname}${port ? `:${port}` : ""}`);
+} catch (error) {
+  console.warn("Unable to determine database connection target:", error);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const defaultFrontendUrl = "https://fof-iota.vercel.app";
@@ -37,7 +47,13 @@ const allowedOrigins = [
 console.log("CORS allowed origins:", allowedOrigins);
 
 // Initialize Prisma Client
-export const prisma = new PrismaClient();
+export const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: databaseUrl,
+    },
+  },
+});
 
 // Middleware
 app.use(cors({
