@@ -23,16 +23,33 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const FRONTEND_URL = process.env.FRONTEND_URL || "https://fof-iota.vercel.app";
-console.log("FRONTEND_URL ", FRONTEND_URL);
+const defaultFrontendUrl = "https://fof-iota.vercel.app";
+const FRONTEND_URL = process.env.FRONTEND_URL || defaultFrontendUrl;
+const allowedOrigins = [
+  FRONTEND_URL,
+  defaultFrontendUrl,
+  "http://localhost:5173",
+  "http://localhost:8080",
+  "http://localhost:3000",
+  "https://fof-iota.vercel.app",
+  "https://fof-3m3x.onrender.com",
+];
+console.log("CORS allowed origins:", allowedOrigins);
 
 // Initialize Prisma Client
 export const prisma = new PrismaClient();
 
 // Middleware
 app.use(cors({
-  origin: FRONTEND_URL,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    console.warn(`CORS blocked origin: ${origin}`);
+    return callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
+  optionsSuccessStatus: 200,
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
