@@ -3,7 +3,7 @@
 // Import types from shared types file
 import type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry } from "@/types";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://fof-3m3x.onrender.com/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://fof-kled.onrender.com/api";
 
 // Get auth token from localStorage
 function getToken(): string | null {
