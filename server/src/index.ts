@@ -35,7 +35,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const defaultFrontendUrl = "https://fof-iota.vercel.app";
 const FRONTEND_URL = process.env.FRONTEND_URL || defaultFrontendUrl;
-const allowedOrigins = [
+const additionalOrigins = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const staticOrigins = [
   FRONTEND_URL,
   defaultFrontendUrl,
   "http://localhost:5173",
@@ -44,6 +49,30 @@ const allowedOrigins = [
   "https://fof-iota.vercel.app",
   "https://fof-3m3x.onrender.com",
 ];
+
+const allowedOrigins = Array.from(new Set([...staticOrigins, ...additionalOrigins]));
+
+function isAllowedOrigin(origin?: string | null): boolean {
+  if (!origin) {
+    return true;
+  }
+
+  if (allowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  try {
+    const url = new URL(origin);
+    if (url.hostname.endsWith(".vercel.app")) {
+      return true;
+    }
+  } catch (error) {
+    console.warn("Failed to parse origin for CORS check:", origin, error);
+  }
+
+  return false;
+}
+
 console.log("CORS allowed origins:", allowedOrigins);
 
 // Initialize Prisma Client
@@ -58,7 +87,7 @@ export const prisma = new PrismaClient({
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (isAllowedOrigin(origin)) {
       return callback(null, true);
     }
     console.warn(`CORS blocked origin: ${origin}`);
