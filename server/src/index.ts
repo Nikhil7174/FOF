@@ -74,7 +74,7 @@ const staticOrigins = [
   "http://localhost:8080",
   "http://localhost:3000",
   "https://fof-iota.vercel.app",
-  "https://fof-kled.onrender.com",
+  "https://fof-klcd.onrender.com",
 ];
 
 const allowedOrigins = Array.from(new Set([...staticOrigins, ...additionalOrigins]));
