@@ -1,6 +1,6 @@
-import { Role, Gender, ParticipantStatus, SportType } from "@prisma/client";
+import { Role, Gender, ParticipantStatus, SportType, MedalType } from "@prisma/client";
 
-export type { Role, Gender, ParticipantStatus, SportType };
+export type { Role, Gender, ParticipantStatus, SportType, MedalType };
 
 export interface NextOfKin {
   firstName: string;

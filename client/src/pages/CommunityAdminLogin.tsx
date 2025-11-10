@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { LogIn } from "lucide-react";
-import { useAuth } from "@/hooks/api/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api";
@@ -14,7 +13,6 @@ import { useState } from "react";
 
 export default function CommunityAdminLogin() {
   const { toast } = useToast();
-  const { login } = useAuth();
   const navigate = useNavigate();
   const [selectedCommunityId, setSelectedCommunityId] = useState<string>("");
   const [email, setEmail] = useState("");
@@ -31,16 +29,13 @@ export default function CommunityAdminLogin() {
       toast({ title: "Error", description: "Please select a community", variant: "destructive" });
       return;
     }
+    if (!email || !password) {
+      toast({ title: "Error", description: "Please enter email and password", variant: "destructive" });
+      return;
+    }
     try {
-      // Login with email (backend accepts email as username)
-      const loggedInUser = await login(email, password);
-      
-      // Verify the user is a community admin for the selected community
-      if (loggedInUser.role !== "community_admin" || loggedInUser.communityId !== selectedCommunityId) {
-        await api.logout();
-        toast({ title: "Login failed", description: "Invalid email or community selection", variant: "destructive" });
-        return;
-      }
+      // Login using the community's adminEmail and adminPassword
+      const loggedInUser = await api.communityAdminLogin(email, password, selectedCommunityId);
       
       toast({ title: "Login Successful", description: "Welcome back!" });
       navigate("/community");

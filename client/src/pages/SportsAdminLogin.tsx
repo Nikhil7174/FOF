@@ -6,15 +6,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { LogIn } from "lucide-react";
-import { useAuth } from "@/hooks/api/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api";
-import { useState } from "react";
+import React, { useState } from "react";
 
 export default function SportsAdminLogin() {
   const { toast } = useToast();
-  const { login } = useAuth();
   const navigate = useNavigate();
   const [selectedSportId, setSelectedSportId] = useState<string>("");
   const [email, setEmail] = useState("");
@@ -31,16 +29,13 @@ export default function SportsAdminLogin() {
       toast({ title: "Error", description: "Please select a sport", variant: "destructive" });
       return;
     }
+    if (!email || !password) {
+      toast({ title: "Error", description: "Please enter email and password", variant: "destructive" });
+      return;
+    }
     try {
-      // Login with email (backend accepts email as username)
-      const loggedInUser = await login(email, password);
-      
-      // Verify the user is a sports admin for the selected sport
-      if (loggedInUser.role !== "sports_admin" || loggedInUser.sportId !== selectedSportId) {
-        await api.logout();
-        toast({ title: "Login failed", description: "Invalid email or sport selection", variant: "destructive" });
-        return;
-      }
+      // Login using the sport's adminEmail and adminPassword
+      const loggedInUser = await api.sportsAdminLogin(email, password, selectedSportId);
       
       toast({ title: "Login Successful", description: "Welcome back!" });
       navigate("/sports-admin");
@@ -70,11 +65,23 @@ export default function SportsAdminLogin() {
                     <SelectValue placeholder="Select a sport" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(sports as any[]).filter((s: any) => !s.parentId).map((sport: any) => (
-                      <SelectItem key={sport.id} value={sport.id}>
-                        {sport.name}
-                      </SelectItem>
-                    ))}
+                    {(sports as any[])
+                      .filter((s: any) => !s.parentId)
+                      .map((parent: any) => {
+                        const children = (sports as any[]).filter((s: any) => s.parentId === parent.id);
+                        return (
+                          <React.Fragment key={parent.id}>
+                            <SelectItem value={parent.id} className="font-semibold">
+                              {parent.name}
+                            </SelectItem>
+                            {children.map((child: any) => (
+                              <SelectItem key={child.id} value={child.id} className="pl-12 text-sm">
+                                {parent.name} - {child.name}
+                              </SelectItem>
+                            ))}
+                          </React.Fragment>
+                        );
+                      })}
                   </SelectContent>
                 </Select>
               </div>

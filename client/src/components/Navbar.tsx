@@ -13,6 +13,7 @@ export const Navbar = () => {
     { to: "/calendar", label: "Calendar" },
     { to: "/sports", label: "Sports" },
     { to: "/communities", label: "Communities" },
+    { to: "/leaderboard", label: "Leaderboard" },
     { to: "/contact", label: "Contact" },
   ];
 
@@ -106,7 +107,9 @@ function getDashboardRoute(role: string): string | null {
 }
 
 function DesktopActions() {
-  const { user, logout } = useAuth();
+  const auth = useAuth();
+  const user = auth?.user || null;
+  const logout = auth?.logout || (async () => {});
   const dashboardRoute = user ? getDashboardRoute(user.role) : null;
   
   return (
@@ -135,7 +138,9 @@ function DesktopActions() {
 }
 
 function MobileActions({ onClick }: { onClick: () => void }) {
-  const { user, logout } = useAuth();
+  const auth = useAuth();
+  const user = auth?.user || null;
+  const logout = auth?.logout || (async () => {});
   const dashboardRoute = user ? getDashboardRoute(user.role) : null;
   
   return (

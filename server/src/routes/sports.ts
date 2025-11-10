@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../index";
 import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
 import { SportType, Gender } from "@prisma/client";
+import { hashPassword } from "../utils/password";
 
 const router = Router();
 
@@ -11,14 +12,16 @@ const createSportSchema = z.object({
   active: z.boolean().optional(),
   type: z.enum(["individual", "team"]),
   requiresTeamName: z.boolean().optional(),
-  parentId: z.string().uuid().optional(),
-  venue: z.string().optional(),
-  timings: z.string().optional(),
-  date: z.string().or(z.date()).optional(),
+  parentId: z.string().optional().nullable(),
+  venue: z.string().optional().nullable(),
+  timings: z.string().optional().nullable(),
+  date: z.string().or(z.date()).optional().nullable(),
   gender: z.enum(["male", "female", "mixed"]).optional().nullable(),
   ageLimitMin: z.number().optional(),
   ageLimitMax: z.number().optional(),
-  rules: z.string().optional(),
+  rules: z.string().optional().nullable(),
+  adminEmail: z.string().email().optional().nullable(),
+  adminPassword: z.string().optional().nullable(),
 });
 
 // List all sports
@@ -97,10 +100,26 @@ router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req:
   try {
     const data = createSportSchema.parse(req.body);
 
+    // Check if adminEmail already exists (if provided)
+    if (data.adminEmail) {
+      const existingAdmin = await prisma.sport.findFirst({
+        where: { adminEmail: data.adminEmail } as any,
+      });
+      if (existingAdmin) {
+        return res.status(409).json({ error: "A sport with this admin email already exists" });
+      }
+    }
+
     // Parse date if provided
     let date: Date | undefined;
     if (data.date) {
       date = typeof data.date === "string" ? new Date(data.date) : data.date;
+    }
+
+    // Hash admin password if provided
+    let hashedAdminPassword: string | undefined;
+    if (data.adminPassword) {
+      hashedAdminPassword = await hashPassword(data.adminPassword);
     }
 
     const sport = await prisma.sport.create({
@@ -117,7 +136,9 @@ router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req:
         ageLimitMin: data.ageLimitMin,
         ageLimitMax: data.ageLimitMax,
         rules: data.rules,
-      },
+        adminEmail: data.adminEmail || null,
+        adminPassword: hashedAdminPassword || null,
+      } as any,
     });
 
     res.status(201).json(sport);
@@ -136,14 +157,59 @@ router.patch("/:id", authenticate, requireRole("admin", "sports_admin"), async (
     const data = createSportSchema.partial().parse(req.body);
 
     // Parse date if provided
-    let date: Date | undefined;
+    let date: Date | null | undefined;
     if (data.date !== undefined) {
-      date = data.date ? (typeof data.date === "string" ? new Date(data.date) : data.date) : null;
+      if (data.date === null || data.date === "") {
+        // Explicitly set to null to clear the date
+        date = null;
+      } else {
+        // Parse the date string or use the Date object
+        date = typeof data.date === "string" ? new Date(data.date) : data.date;
+        // Validate the date
+        if (isNaN(date.getTime())) {
+          return res.status(400).json({ error: "Invalid date format" });
+        }
+      }
+    }
+
+    // Check if adminEmail already exists (if provided and different from current)
+    if (data.adminEmail !== undefined) {
+      const currentSport = await prisma.sport.findUnique({ where: { id }, select: { adminEmail: true } as any });
+      if (data.adminEmail && data.adminEmail !== (currentSport as any)?.adminEmail) {
+        const existingAdmin = await prisma.sport.findFirst({
+          where: { adminEmail: data.adminEmail } as any,
+        });
+        if (existingAdmin) {
+          return res.status(409).json({ error: "A sport with this admin email already exists" });
+        }
+      }
+    }
+
+    // Hash admin password if provided
+    let hashedAdminPassword: string | undefined;
+    if (data.adminPassword) {
+      hashedAdminPassword = await hashPassword(data.adminPassword);
     }
 
     const updateData: any = { ...data };
-    if (date !== undefined) {
+    // Only include date in update if it was explicitly provided
+    if (data.date !== undefined) {
       updateData.date = date;
+    }
+    // Remove date from updateData if it's undefined (to avoid sending it)
+    if (date === undefined) {
+      delete updateData.date;
+    }
+    // Handle adminEmail and adminPassword
+    if (data.adminEmail !== undefined) {
+      updateData.adminEmail = data.adminEmail || null;
+    }
+    if (hashedAdminPassword !== undefined) {
+      updateData.adminPassword = hashedAdminPassword;
+    }
+    // Remove adminPassword from updateData if not provided (to avoid clearing it)
+    if (data.adminPassword === undefined) {
+      delete updateData.adminPassword;
     }
 
     const sport = await prisma.sport.update({

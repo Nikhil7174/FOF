@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api";
 import { SportRecord, Convenor } from "@/types";
@@ -51,18 +51,45 @@ const sportSchema = z.object({
   name: z.string().min(1, "Name is required"),
   type: z.enum(["individual", "team"]),
   requiresTeamName: z.boolean(),
-  parentId: z.string().optional(),
+  parentId: z.string().optional().nullable(),
   active: z.boolean(),
   venue: z.string().optional(),
   timings: z.string().optional(),
   date: z.string().optional(),
   gender: z.enum(["male", "female", "mixed"]).optional().nullable(),
-  ageLimitMin: z.coerce.number().optional(),
-  ageLimitMax: z.coerce.number().optional(),
+  ageLimitMin: z.preprocess(
+    (val) => {
+      if (val === "" || val === null || val === undefined) return undefined;
+      const num = Number(val);
+      return isNaN(num) ? undefined : num;
+    },
+    z.number().optional()
+  ),
+  ageLimitMax: z.preprocess(
+    (val) => {
+      if (val === "" || val === null || val === undefined) return undefined;
+      const num = Number(val);
+      return isNaN(num) ? undefined : num;
+    },
+    z.number().optional()
+  ),
   rules: z.string().optional(),
   convenorName: z.string().optional(),
-  convenorPhone: z.string().optional(),
-  convenorEmail: z.string().email().optional().or(z.literal("")),
+  convenorPhone: z.string()
+    .optional()
+    .refine((val) => !val || val.trim() === "" || /^[\d\s\-\+\(\)]+$/.test(val), {
+      message: "Phone number can only contain digits, spaces, hyphens, plus, and parentheses",
+    }),
+  convenorEmail: z.string()
+    .email("Invalid email address")
+    .optional()
+    .or(z.literal("")),
+  adminEmail: z.string()
+    .email("Invalid email address")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  adminPassword: z.string().optional().nullable(),
 });
 
 type SportFormData = z.infer<typeof sportSchema>;
@@ -91,51 +118,67 @@ export function SportManagement() {
       name: "",
       type: "individual",
       requiresTeamName: false,
-      parentId: undefined,
+      parentId: null,
       active: true,
       venue: "",
       timings: "",
       date: "",
       gender: null,
-      ageLimitMin: undefined,
-      ageLimitMax: undefined,
+      ageLimitMin: "" as any,
+      ageLimitMax: "" as any,
       rules: "",
       convenorName: "",
       convenorPhone: "",
       convenorEmail: "",
+      adminEmail: "",
+      adminPassword: "",
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: SportFormData) => {
+      // Convert empty strings to null for optional fields
       const sportData: Omit<SportRecord, "id"> = {
         name: data.name,
         type: data.type,
         requiresTeamName: data.requiresTeamName,
-        parentId: data.parentId || undefined,
+        parentId: data.parentId ?? null,
         active: data.active,
-        venue: data.venue || undefined,
-        timings: data.timings || undefined,
-        date: data.date || undefined,
-        gender: data.gender || undefined,
-        ageLimit: (data.ageLimitMin || data.ageLimitMax)
+        venue: data.venue?.trim() || null,
+        timings: data.timings?.trim() || null,
+        // Only include date if it's a non-empty string, otherwise set to null to clear it
+        date: data.date?.trim() && data.date.trim().length > 0 ? data.date.trim() : null,
+        gender: data.gender ?? null,
+        adminEmail: data.adminEmail?.trim() && data.adminEmail.trim().length > 0 ? data.adminEmail.trim() : null,
+        adminPassword: data.adminPassword?.trim() && data.adminPassword.trim().length > 0 ? data.adminPassword.trim() : null,
+        ageLimit: (data.ageLimitMin !== undefined && data.ageLimitMin !== null && data.ageLimitMin !== "") || 
+                  (data.ageLimitMax !== undefined && data.ageLimitMax !== null && data.ageLimitMax !== "")
           ? {
-              min: data.ageLimitMin,
-              max: data.ageLimitMax,
+              min: data.ageLimitMin !== undefined && data.ageLimitMin !== null && data.ageLimitMin !== "" 
+                ? (typeof data.ageLimitMin === "string" ? Number(data.ageLimitMin) : data.ageLimitMin) 
+                : null,
+              max: data.ageLimitMax !== undefined && data.ageLimitMax !== null && data.ageLimitMax !== "" 
+                ? (typeof data.ageLimitMax === "string" ? Number(data.ageLimitMax) : data.ageLimitMax) 
+                : null,
             }
-          : undefined,
-        rules: data.rules || undefined,
+          : null,
+        rules: data.rules?.trim() || null,
       };
       const sport = await api.createSport(sportData);
       
-      // Create convenor if provided
-      if (data.convenorName && data.convenorPhone && data.convenorEmail) {
-        await api.createConvenor({
-          name: data.convenorName,
-          phone: data.convenorPhone,
-          email: data.convenorEmail,
-          sportId: sport.id,
-        });
+      // Create convenor if provided (with null safety)
+      if (sport?.id && data.convenorName?.trim() && data.convenorPhone?.trim() && data.convenorEmail?.trim()) {
+        try {
+          await api.createConvenor({
+            name: data.convenorName.trim(),
+            phone: data.convenorPhone.trim(),
+            email: data.convenorEmail.trim(),
+            sportId: sport.id,
+          });
+        } catch (convenorError) {
+          console.error("Error creating convenor:", convenorError);
+          // Don't fail the whole creation if convenor creation fails
+        }
       }
       
       return sport;
@@ -146,51 +189,103 @@ export function SportManagement() {
       setDialogOpen(false);
       form.reset();
     },
+    onError: (error: any) => {
+      console.error("Error creating sport:", error);
+      const errorMessage = error?.message || error?.error || error?.toString() || "Unknown error";
+      alert(`Error creating sport: ${errorMessage}`);
+    },
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<SportFormData> }) => {
+      console.log("Update mutation called with id:", id, "data:", data);
+      if (!id) {
+        throw new Error("Sport ID is required for update");
+      }
+      
       const sportData: Partial<Omit<SportRecord, "id">> = {};
+      // Always include these fields when updating
       if (data.name !== undefined) sportData.name = data.name;
       if (data.type !== undefined) sportData.type = data.type;
       if (data.requiresTeamName !== undefined) sportData.requiresTeamName = data.requiresTeamName;
-      if (data.parentId !== undefined) sportData.parentId = data.parentId || undefined;
+      if (data.parentId !== undefined) sportData.parentId = data.parentId ?? null;
       if (data.active !== undefined) sportData.active = data.active;
-      if (data.venue !== undefined) sportData.venue = data.venue || undefined;
-      if (data.timings !== undefined) sportData.timings = data.timings || undefined;
-      if (data.date !== undefined) sportData.date = data.date || undefined;
-      if (data.gender !== undefined) sportData.gender = data.gender || undefined;
-      if (data.ageLimitMin !== undefined || data.ageLimitMax !== undefined) {
-        sportData.ageLimit = {
-          min: data.ageLimitMin,
-          max: data.ageLimitMax,
-        };
-      }
-      if (data.rules !== undefined) sportData.rules = data.rules || undefined;
-      
-      const sport = await api.updateSport(id, sportData);
-      
-      // Handle convenor update - fetch current convenors
-      const currentConvenors = await api.listConvenors();
-      const existingConvenor = currentConvenors.find(c => c.sportId === id);
-      if (data.convenorName && data.convenorPhone && data.convenorEmail) {
-        if (existingConvenor) {
-          await api.updateConvenor(existingConvenor.id, {
-            name: data.convenorName,
-            phone: data.convenorPhone,
-            email: data.convenorEmail,
-          });
+      if (data.venue !== undefined) sportData.venue = data.venue?.trim() || null;
+      if (data.timings !== undefined) sportData.timings = data.timings?.trim() || null;
+      // Only include date if it's a non-empty string, otherwise set to null to clear it
+      if (data.date !== undefined) {
+        const trimmedDate = data.date?.trim();
+        if (trimmedDate && trimmedDate.length > 0) {
+          sportData.date = trimmedDate;
         } else {
-          await api.createConvenor({
-            name: data.convenorName,
-            phone: data.convenorPhone,
-            email: data.convenorEmail,
-            sportId: id,
-          });
+          // Send null to clear the date (backend schema now allows null)
+          sportData.date = null;
         }
-      } else if (existingConvenor && (!data.convenorName || !data.convenorPhone || !data.convenorEmail)) {
-        // Remove convenor if fields are cleared
-        await api.deleteConvenor(existingConvenor.id);
+      }
+      if (data.gender !== undefined) sportData.gender = data.gender ?? null;
+      
+      // Handle age limits - check if values are provided (not empty strings, null, or undefined)
+      const hasMinAge = data.ageLimitMin !== undefined && data.ageLimitMin !== null && data.ageLimitMin !== "";
+      const hasMaxAge = data.ageLimitMax !== undefined && data.ageLimitMax !== null && data.ageLimitMax !== "";
+      
+      if (hasMinAge || hasMaxAge) {
+        sportData.ageLimit = {
+          min: hasMinAge ? (typeof data.ageLimitMin === "string" ? Number(data.ageLimitMin) : data.ageLimitMin) : null,
+          max: hasMaxAge ? (typeof data.ageLimitMax === "string" ? Number(data.ageLimitMax) : data.ageLimitMax) : null,
+        };
+      } else if (data.ageLimitMin !== undefined || data.ageLimitMax !== undefined) {
+        // Explicitly set to null if both are empty (to clear age limit)
+        sportData.ageLimit = null;
+      }
+      
+      if (data.rules !== undefined) sportData.rules = data.rules?.trim() || null;
+      
+      // Handle admin email and password
+      if (data.adminEmail !== undefined) {
+        sportData.adminEmail = data.adminEmail?.trim() && data.adminEmail.trim().length > 0 ? data.adminEmail.trim() : null;
+      }
+      // Only update adminPassword if it's provided and not the masked value
+      if (data.adminPassword !== undefined && data.adminPassword !== "***" && data.adminPassword.trim() !== "") {
+        sportData.adminPassword = data.adminPassword.trim();
+      } else if (data.adminPassword === "") {
+        // Empty string means clear it
+        sportData.adminPassword = null;
+      }
+      // If adminPassword is "***" or undefined, don't include it (keep existing)
+      
+      console.log("Sending sportData to API:", sportData);
+      const sport = await api.updateSport(id, sportData);
+      console.log("API response:", sport);
+      
+      // Handle convenor update - fetch current convenors with null safety
+      try {
+        const currentConvenors = await api.listConvenors();
+        const existingConvenor = currentConvenors?.find(c => c?.sportId === id);
+        
+        const hasConvenorData = data.convenorName?.trim() && data.convenorPhone?.trim() && data.convenorEmail?.trim();
+        
+        if (hasConvenorData) {
+          if (existingConvenor?.id) {
+            await api.updateConvenor(existingConvenor.id, {
+              name: data.convenorName.trim(),
+              phone: data.convenorPhone.trim(),
+              email: data.convenorEmail.trim(),
+            });
+          } else {
+            await api.createConvenor({
+              name: data.convenorName.trim(),
+              phone: data.convenorPhone.trim(),
+              email: data.convenorEmail.trim(),
+              sportId: id,
+            });
+          }
+        } else if (existingConvenor?.id) {
+          // Remove convenor if fields are cleared
+          await api.deleteConvenor(existingConvenor.id);
+        }
+      } catch (convenorError) {
+        console.error("Error updating convenor:", convenorError);
+        // Don't fail the whole update if convenor update fails
       }
       
       return sport;
@@ -202,37 +297,69 @@ export function SportManagement() {
       setEditingSport(null);
       form.reset();
     },
+    onError: (error: any) => {
+      console.error("Error updating sport:", error);
+      const errorMessage = error?.message || error?.error || error?.toString() || "Unknown error";
+      alert(`Error updating sport: ${errorMessage}`);
+    },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteSport(id),
+    mutationFn: (id: string) => {
+      if (!id) {
+        throw new Error("Sport ID is required for deletion");
+      }
+      return api.deleteSport(id);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sports"] });
       setDeleteDialogOpen(false);
       setSportToDelete(null);
     },
+    onError: (error: any) => {
+      console.error("Error deleting sport:", error);
+      const errorMessage = error?.message || error?.error || error?.toString() || "Unknown error";
+      alert(`Error deleting sport: ${errorMessage}`);
+      setDeleteDialogOpen(false);
+    },
   });
 
   const handleOpenDialog = (sport?: SportRecord) => {
-    if (sport) {
+    if (sport?.id) {
       setEditingSport(sport);
-      const convenor = convenors.find(c => c.sportId === sport.id);
+      const convenor = convenors?.find(c => c?.sportId === sport.id) ?? null;
+      // Format date for date input (YYYY-MM-DD format)
+      let formattedDate = "";
+      if (sport.date) {
+        try {
+          const dateObj = typeof sport.date === "string" ? new Date(sport.date) : sport.date;
+          if (!isNaN(dateObj.getTime())) {
+            // Format as YYYY-MM-DD for date input
+            formattedDate = dateObj.toISOString().split("T")[0];
+          }
+        } catch (e) {
+          console.error("Error formatting date:", e);
+        }
+      }
+      
       form.reset({
-        name: sport.name,
-        type: sport.type,
-        requiresTeamName: sport.requiresTeamName,
-        parentId: sport.parentId,
-        active: sport.active,
-        venue: sport.venue || "",
-        timings: sport.timings || "",
-        date: sport.date || "",
-        gender: sport.gender || null,
-        ageLimitMin: sport.ageLimit?.min,
-        ageLimitMax: sport.ageLimit?.max,
-        rules: sport.rules || "",
-        convenorName: convenor?.name || "",
-        convenorPhone: convenor?.phone || "",
-        convenorEmail: convenor?.email || "",
+        name: sport.name ?? "",
+        type: sport.type ?? "individual",
+        requiresTeamName: sport.requiresTeamName ?? false,
+        parentId: sport.parentId ?? null,
+        active: sport.active ?? true,
+        venue: sport.venue ?? "",
+        timings: sport.timings ?? "",
+        date: formattedDate,
+        gender: sport.gender ?? null,
+        ageLimitMin: (sport.ageLimit?.min !== undefined && sport.ageLimit?.min !== null) ? String(sport.ageLimit.min) : "" as any,
+        ageLimitMax: (sport.ageLimit?.max !== undefined && sport.ageLimit?.max !== null) ? String(sport.ageLimit.max) : "" as any,
+        rules: sport.rules ?? "",
+        convenorName: convenor?.name ?? "",
+        convenorPhone: convenor?.phone ?? "",
+        convenorEmail: convenor?.email ?? "",
+        adminEmail: sport.adminEmail ?? "",
+        adminPassword: sport.adminPassword ? "***" : "", // Mask existing password
       });
     } else {
       setEditingSport(null);
@@ -242,21 +369,43 @@ export function SportManagement() {
   };
 
   const handleSubmit = (data: SportFormData) => {
-    if (editingSport) {
+    console.log("Form submitted with data:", data);
+    console.log("Editing sport:", editingSport);
+    console.log("Form errors:", form.formState.errors);
+    
+    // Safety check: ensure required fields are present
+    if (!data.name?.trim()) {
+      alert("Sport name is required");
+      return;
+    }
+    
+    if (editingSport?.id) {
+      console.log("Calling update mutation with id:", editingSport.id);
       updateMutation.mutate({ id: editingSport.id, data });
     } else {
+      console.log("Calling create mutation");
       createMutation.mutate(data);
     }
   };
 
+  const handleSubmitError = (errors: any) => {
+    console.log("Form validation errors:", errors);
+    alert(`Form validation failed. Please check the form fields.\nErrors: ${JSON.stringify(errors, null, 2)}`);
+  };
+
   const handleDelete = (sport: SportRecord) => {
-    setSportToDelete(sport);
-    setDeleteDialogOpen(true);
+    if (sport?.id) {
+      setSportToDelete(sport);
+      setDeleteDialogOpen(true);
+    }
   };
 
   const confirmDelete = () => {
-    if (sportToDelete) {
+    if (sportToDelete?.id) {
       deleteMutation.mutate(sportToDelete.id);
+    } else {
+      console.error("Cannot delete: sport ID is missing");
+      setDeleteDialogOpen(false);
     }
   };
 
@@ -278,7 +427,17 @@ export function SportManagement() {
                 {editingSport ? "Update the sport details below." : "Fill in the details to create a new sport."}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log("Form onSubmit triggered");
+                console.log("Form values:", form.getValues());
+                console.log("Form errors:", form.formState.errors);
+                form.handleSubmit(handleSubmit, handleSubmitError)(e);
+              }} 
+              className="space-y-4"
+            >
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Sport Name *</Label>
@@ -307,8 +466,8 @@ export function SportManagement() {
               <div className="space-y-2">
                 <Label htmlFor="parentId">Parent Sport (optional)</Label>
                 <Select
-                  value={form.watch("parentId") || "none"}
-                  onValueChange={(value) => form.setValue("parentId", value === "none" ? undefined : value)}
+                  value={form.watch("parentId") ?? "none"}
+                  onValueChange={(value) => form.setValue("parentId", value === "none" ? null : value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="No parent (top-level sport)" />
@@ -368,15 +527,21 @@ export function SportManagement() {
                     <Input
                       type="number"
                       placeholder="Min age"
-                      {...form.register("ageLimitMin", { valueAsNumber: true })}
+                      {...form.register("ageLimitMin")}
                     />
+                    {form.formState.errors.ageLimitMin && (
+                      <p className="text-sm text-destructive">{form.formState.errors.ageLimitMin.message}</p>
+                    )}
                   </div>
                   <div>
                     <Input
                       type="number"
                       placeholder="Max age"
-                      {...form.register("ageLimitMax", { valueAsNumber: true })}
+                      {...form.register("ageLimitMax")}
                     />
+                    {form.formState.errors.ageLimitMax && (
+                      <p className="text-sm text-destructive">{form.formState.errors.ageLimitMax.message}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -402,11 +567,44 @@ export function SportManagement() {
                     <div className="space-y-2">
                       <Label htmlFor="convenorPhone">Convenor Phone</Label>
                       <Input id="convenorPhone" {...form.register("convenorPhone")} placeholder="Phone number" />
+                      {form.formState.errors.convenorPhone && (
+                        <p className="text-sm text-destructive">{form.formState.errors.convenorPhone.message}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="convenorEmail">Convenor Email</Label>
                       <Input id="convenorEmail" type="email" {...form.register("convenorEmail")} placeholder="Email address" />
+                      {form.formState.errors.convenorEmail && (
+                        <p className="text-sm text-destructive">{form.formState.errors.convenorEmail.message}</p>
+                      )}
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 border-t pt-4">
+                <Label className="text-base font-semibold">Sports Admin Credentials</Label>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="adminEmail">Admin Email</Label>
+                    <Input id="adminEmail" type="email" {...form.register("adminEmail")} placeholder="admin@sport.com" />
+                    {form.formState.errors.adminEmail && (
+                      <p className="text-sm text-destructive">{form.formState.errors.adminEmail.message}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="adminPassword">
+                      Admin Password {editingSport && "(leave blank to keep current)"}
+                    </Label>
+                    <Input
+                      id="adminPassword"
+                      type="password"
+                      {...form.register("adminPassword")}
+                      placeholder={editingSport ? "Leave blank to keep current" : "Password for sports admin"}
+                    />
+                    {form.formState.errors.adminPassword && (
+                      <p className="text-sm text-destructive">{form.formState.errors.adminPassword.message}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -437,7 +635,10 @@ export function SportManagement() {
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                <Button 
+                  type="submit" 
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                >
                   {editingSport ? "Update" : "Create"}
                 </Button>
               </DialogFooter>
@@ -484,35 +685,36 @@ export function SportManagement() {
               </TableRow>
             ) : (
               sports
-                .filter((s) => !s.parentId)
+                .filter((s) => s?.id && !s?.parentId)
                 .map((parent) => (
-                  <>
-                    <TableRow key={parent.id}>
+                  <React.Fragment key={parent.id}>
+                    <TableRow>
                       <TableCell className="font-medium">
                         <button
                           type="button"
                           className="inline-flex items-center mr-2"
                           onClick={() =>
-                            setExpandedParents((prev) => ({ ...prev, [parent.id]: !prev[parent.id] }))
+                            setExpandedParents((prev) => ({ ...prev, [parent.id ?? ""]: !prev[parent.id ?? ""] }))
                           }
                           aria-label="Toggle children"
                         >
-                          {sports.some((s) => s.parentId === parent.id) ? (
-                            expandedParents[parent.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
+                          {sports.some((s) => s?.parentId === parent.id) ? (
+                            expandedParents[parent.id ?? ""] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
                           ) : (
                             <span className="inline-block w-4" />
                           )}
                         </button>
-                        {parent.name}
+                        {parent.name ?? "-"}
                       </TableCell>
-                      <TableCell>{parent.type}</TableCell>
-                      <TableCell>{parent.venue || "-"}</TableCell>
-                      <TableCell>{parent.timings || "-"}</TableCell>
-                      <TableCell>{parent.date || "-"}</TableCell>
-                      <TableCell>{parent.gender || "Any"}</TableCell>
+                      <TableCell>{parent.type ?? "-"}</TableCell>
+                      <TableCell>{parent.venue ?? "-"}</TableCell>
+                      <TableCell>{parent.timings ?? "-"}</TableCell>
+                      <TableCell>{parent.date ? new Date(parent.date).toLocaleDateString() : "-"}</TableCell>
+                      <TableCell>{parent.gender ?? "Any"}</TableCell>
                       <TableCell>
-                        {parent.ageLimit
-                          ? `${parent.ageLimit.min || "?"}-${parent.ageLimit.max || "?"}`
+                        {parent.ageLimit?.min !== null && parent.ageLimit?.min !== undefined || 
+                         parent.ageLimit?.max !== null && parent.ageLimit?.max !== undefined
+                          ? `${parent.ageLimit?.min ?? "?"}-${parent.ageLimit?.max ?? "?"}`
                           : "-"}
                       </TableCell>
                       <TableCell>
@@ -531,20 +733,21 @@ export function SportManagement() {
                         </div>
                       </TableCell>
                     </TableRow>
-                    {expandedParents[parent.id] &&
+                    {expandedParents[parent.id ?? ""] &&
                       sports
-                        .filter((c) => c.parentId === parent.id)
+                        .filter((c) => c?.parentId === parent.id)
                         .map((child) => (
                           <TableRow key={child.id}>
-                            <TableCell className="font-medium pl-8">└─ {child.name}</TableCell>
-                            <TableCell>{child.type}</TableCell>
-                            <TableCell>{child.venue || "-"}</TableCell>
-                            <TableCell>{child.timings || "-"}</TableCell>
-                            <TableCell>{child.date || "-"}</TableCell>
-                            <TableCell>{child.gender || "Any"}</TableCell>
+                            <TableCell className="font-medium pl-8">└─ {child.name ?? "-"}</TableCell>
+                            <TableCell>{child.type ?? "-"}</TableCell>
+                            <TableCell>{child.venue ?? "-"}</TableCell>
+                            <TableCell>{child.timings ?? "-"}</TableCell>
+                            <TableCell>{child.date ? new Date(child.date).toLocaleDateString() : "-"}</TableCell>
+                            <TableCell>{child.gender ?? "Any"}</TableCell>
                             <TableCell>
-                              {child.ageLimit
-                                ? `${child.ageLimit.min || "?"}-${child.ageLimit.max || "?"}`
+                              {child.ageLimit?.min !== null && child.ageLimit?.min !== undefined || 
+                               child.ageLimit?.max !== null && child.ageLimit?.max !== undefined
+                                ? `${child.ageLimit?.min ?? "?"}-${child.ageLimit?.max ?? "?"}`
                                 : "-"}
                             </TableCell>
                             <TableCell>
@@ -564,7 +767,7 @@ export function SportManagement() {
                             </TableCell>
                           </TableRow>
                         ))}
-                  </>
+                  </React.Fragment>
                 ))
             )}
           </TableBody>

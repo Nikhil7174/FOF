@@ -13,6 +13,8 @@ const createCommunitySchema = z.object({
   phone: z.string().min(1),
   email: z.string().email(),
   password: z.string().optional(),
+  adminEmail: z.string().email().optional().nullable(),
+  adminPassword: z.string().optional().nullable(),
 });
 
 // List communities (public - needed for login page)
@@ -72,21 +74,30 @@ router.post("/", authenticate, requireRole("admin"), async (req: AuthRequest, re
   try {
     const data = createCommunitySchema.parse(req.body);
 
-    // Check if name or email already exists
+    // Check if name, email, or adminEmail already exists
     const existing = await prisma.community.findFirst({
       where: {
-        OR: [{ name: data.name }, { email: data.email }],
-      },
+        OR: [
+          { name: data.name }, 
+          { email: data.email },
+          ...(data.adminEmail ? [{ adminEmail: data.adminEmail } as any] : [])
+        ],
+      } as any,
     });
 
     if (existing) {
-      return res.status(409).json({ error: "Community with this name or email already exists" });
+      return res.status(409).json({ error: "Community with this name, email, or admin email already exists" });
     }
 
-    // Hash password if provided
+    // Hash passwords if provided
     let hashedPassword: string | undefined;
     if (data.password) {
       hashedPassword = await hashPassword(data.password);
+    }
+
+    let hashedAdminPassword: string | undefined;
+    if (data.adminPassword) {
+      hashedAdminPassword = await hashPassword(data.adminPassword);
     }
 
     const community = await prisma.community.create({
@@ -97,6 +108,8 @@ router.post("/", authenticate, requireRole("admin"), async (req: AuthRequest, re
         phone: data.phone,
         email: data.email,
         password: hashedPassword,
+        adminEmail: data.adminEmail || null,
+        adminPassword: hashedAdminPassword || null,
       },
       select: {
         id: true,
@@ -125,15 +138,27 @@ router.patch("/:id", authenticate, requireRole("admin"), async (req: AuthRequest
     const { id } = req.params;
     const data = createCommunitySchema.partial().parse(req.body);
 
-    // Hash password if provided
+    // Hash passwords if provided
     let hashedPassword: string | undefined;
     if (data.password) {
       hashedPassword = await hashPassword(data.password);
     }
 
+    let hashedAdminPassword: string | undefined;
+    if (data.adminPassword) {
+      hashedAdminPassword = await hashPassword(data.adminPassword);
+    }
+
     const updateData: any = { ...data };
     if (hashedPassword !== undefined) {
       updateData.password = hashedPassword;
+    }
+    if (hashedAdminPassword !== undefined) {
+      updateData.adminPassword = hashedAdminPassword;
+    }
+    // Handle adminEmail separately (can be set to null to clear it)
+    if (data.adminEmail !== undefined) {
+      updateData.adminEmail = data.adminEmail || null;
     }
 
     const community = await prisma.community.update({

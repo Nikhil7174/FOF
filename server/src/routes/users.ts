@@ -13,7 +13,7 @@ const createUserSchema = z.object({
   password: z.string().min(1),
   role: z.enum(["admin", "community_admin", "sports_admin", "volunteer_admin", "volunteer", "user"]),
   communityId: z.string().uuid().optional(),
-  sportId: z.string().uuid().optional(),
+  sportId: z.string().optional(),
 });
 
 // List users

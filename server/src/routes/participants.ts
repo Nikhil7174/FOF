@@ -21,7 +21,7 @@ const createParticipantSchema = z.object({
     lastName: z.string().min(1),
     phone: z.string().min(1),
   }),
-  sports: z.array(z.string().uuid()),
+  sports: z.array(z.string()),
   teamName: z.string().optional(),
 });
 

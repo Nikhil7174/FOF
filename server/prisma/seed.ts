@@ -1,4 +1,4 @@
-import { PrismaClient, Role, Gender, ParticipantStatus, SportType } from "@prisma/client";
+import { PrismaClient, Role, Gender, ParticipantStatus, SportType, MedalType } from "@prisma/client";
 import bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
@@ -67,6 +67,58 @@ async function main() {
       contactPerson: "Jennifer Muthoni",
       phone: "+254 723 222 222",
       email: "westlands@fof.co.ke",
+    },
+  });
+
+  const comm3 = await prisma.community.upsert({
+    where: { id: "3" },
+    update: {},
+    create: {
+      id: "3",
+      name: "Parklands",
+      active: true,
+      contactPerson: "David Kimani",
+      phone: "+254 734 333 333",
+      email: "parklands@fof.co.ke",
+    },
+  });
+
+  const comm4 = await prisma.community.upsert({
+    where: { id: "4" },
+    update: {},
+    create: {
+      id: "4",
+      name: "Kilimani",
+      active: true,
+      contactPerson: "Sarah Wanjiku",
+      phone: "+254 745 444 444",
+      email: "kilimani@fof.co.ke",
+    },
+  });
+
+  const comm5 = await prisma.community.upsert({
+    where: { id: "5" },
+    update: {},
+    create: {
+      id: "5",
+      name: "Lavington",
+      active: true,
+      contactPerson: "James Ochieng",
+      phone: "+254 756 555 555",
+      email: "lavington@fof.co.ke",
+    },
+  });
+
+  const comm6 = await prisma.community.upsert({
+    where: { id: "6" },
+    update: {},
+    create: {
+      id: "6",
+      name: "Karen",
+      active: true,
+      contactPerson: "Mary Njeri",
+      phone: "+254 767 666 666",
+      email: "karen@fof.co.ke",
     },
   });
 
@@ -746,6 +798,501 @@ The community with the highest total points wins the overall championship.`,
     create: {
       id: "1",
       ageCalculatorDate: new Date("2026-11-01"),
+    },
+  });
+
+  // Create leaderboard entries
+  console.log("Creating leaderboard entries...");
+
+  // Nairobi Central scores
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm1.id,
+        sportId: sport1.id, // Football
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm1.id,
+      sportId: sport1.id,
+      score: 10,
+      position: 1,
+      medalType: MedalType.gold,
+      notes: "Won the football tournament",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm1.id,
+        sportId: sport2.id, // Basketball
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm1.id,
+      sportId: sport2.id,
+      score: 7,
+      position: 2,
+      medalType: MedalType.silver,
+      notes: "Second place in basketball",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm1.id,
+        sportId: sport4.id, // Athletics
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm1.id,
+      sportId: sport4.id,
+      score: 5,
+      position: 3,
+      medalType: MedalType.bronze,
+      notes: "Third place in athletics",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm1.id,
+        sportId: sport10.id, // Badminton
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm1.id,
+      sportId: sport10.id,
+      score: 3,
+      position: null,
+      medalType: MedalType.none,
+      notes: "Participated in badminton",
+    },
+  });
+
+  // Westlands scores
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm2.id,
+        sportId: sport1.id, // Football
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm2.id,
+      sportId: sport1.id,
+      score: 7,
+      position: 2,
+      medalType: MedalType.silver,
+      notes: "Second place in football",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm2.id,
+        sportId: sport2.id, // Basketball
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm2.id,
+      sportId: sport2.id,
+      score: 10,
+      position: 1,
+      medalType: MedalType.gold,
+      notes: "Won the basketball tournament",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm2.id,
+        sportId: sport4.id, // Athletics
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm2.id,
+      sportId: sport4.id,
+      score: 10,
+      position: 1,
+      medalType: MedalType.gold,
+      notes: "Won the athletics competition",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm2.id,
+        sportId: sport11.id, // Darts
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm2.id,
+      sportId: sport11.id,
+      score: 5,
+      position: 3,
+      medalType: MedalType.bronze,
+      notes: "Third place in darts",
+    },
+  });
+
+  // Parklands scores
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm3.id,
+        sportId: sport1.id, // Football
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm3.id,
+      sportId: sport1.id,
+      score: 5,
+      position: 3,
+      medalType: MedalType.bronze,
+      notes: "Third place in football",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm3.id,
+        sportId: sport2.id, // Basketball
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm3.id,
+      sportId: sport2.id,
+      score: 5,
+      position: 3,
+      medalType: MedalType.bronze,
+      notes: "Third place in basketball",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm3.id,
+        sportId: sport4.id, // Athletics
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm3.id,
+      sportId: sport4.id,
+      score: 7,
+      position: 2,
+      medalType: MedalType.silver,
+      notes: "Second place in athletics",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm3.id,
+        sportId: sport10.id, // Badminton
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm3.id,
+      sportId: sport10.id,
+      score: 10,
+      position: 1,
+      medalType: MedalType.gold,
+      notes: "Won the badminton tournament",
+    },
+  });
+
+  // Kilimani scores
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm4.id,
+        sportId: sport1.id, // Football
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm4.id,
+      sportId: sport1.id,
+      score: 3,
+      position: null,
+      medalType: MedalType.none,
+      notes: "Participated in football",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm4.id,
+        sportId: sport2.id, // Basketball
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm4.id,
+      sportId: sport2.id,
+      score: 7,
+      position: 2,
+      medalType: MedalType.silver,
+      notes: "Second place in basketball",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm4.id,
+        sportId: sport4.id, // Athletics
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm4.id,
+      sportId: sport4.id,
+      score: 3,
+      position: null,
+      medalType: MedalType.none,
+      notes: "Participated in athletics",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm4.id,
+        sportId: sport10.id, // Badminton
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm4.id,
+      sportId: sport10.id,
+      score: 7,
+      position: 2,
+      medalType: MedalType.silver,
+      notes: "Second place in badminton",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm4.id,
+        sportId: sport11.id, // Darts
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm4.id,
+      sportId: sport11.id,
+      score: 10,
+      position: 1,
+      medalType: MedalType.gold,
+      notes: "Won the darts tournament",
+    },
+  });
+
+  // Lavington scores
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm5.id,
+        sportId: sport1.id, // Football
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm5.id,
+      sportId: sport1.id,
+      score: 3,
+      position: null,
+      medalType: MedalType.none,
+      notes: "Participated in football",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm5.id,
+        sportId: sport2.id, // Basketball
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm5.id,
+      sportId: sport2.id,
+      score: 3,
+      position: null,
+      medalType: MedalType.none,
+      notes: "Participated in basketball",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm5.id,
+        sportId: sport4.id, // Athletics
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm5.id,
+      sportId: sport4.id,
+      score: 5,
+      position: 3,
+      medalType: MedalType.bronze,
+      notes: "Third place in athletics",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm5.id,
+        sportId: sport10.id, // Badminton
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm5.id,
+      sportId: sport10.id,
+      score: 5,
+      position: 3,
+      medalType: MedalType.bronze,
+      notes: "Third place in badminton",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm5.id,
+        sportId: sport11.id, // Darts
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm5.id,
+      sportId: sport11.id,
+      score: 7,
+      position: 2,
+      medalType: MedalType.silver,
+      notes: "Second place in darts",
+    },
+  });
+
+  // Karen scores
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm6.id,
+        sportId: sport1.id, // Football
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm6.id,
+      sportId: sport1.id,
+      score: 3,
+      position: null,
+      medalType: MedalType.none,
+      notes: "Participated in football",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm6.id,
+        sportId: sport2.id, // Basketball
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm6.id,
+      sportId: sport2.id,
+      score: 3,
+      position: null,
+      medalType: MedalType.none,
+      notes: "Participated in basketball",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm6.id,
+        sportId: sport4.id, // Athletics
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm6.id,
+      sportId: sport4.id,
+      score: 3,
+      position: null,
+      medalType: MedalType.none,
+      notes: "Participated in athletics",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm6.id,
+        sportId: sport10.id, // Badminton
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm6.id,
+      sportId: sport10.id,
+      score: 3,
+      position: null,
+      medalType: MedalType.none,
+      notes: "Participated in badminton",
+    },
+  });
+
+  await prisma.leaderboardEntry.upsert({
+    where: {
+      communityId_sportId: {
+        communityId: comm6.id,
+        sportId: sport11.id, // Darts
+      },
+    },
+    update: {},
+    create: {
+      communityId: comm6.id,
+      sportId: sport11.id,
+      score: 3,
+      position: null,
+      medalType: MedalType.none,
+      notes: "Participated in darts",
     },
   });
 

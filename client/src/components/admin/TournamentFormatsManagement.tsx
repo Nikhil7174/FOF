@@ -4,6 +4,7 @@ import { api } from "@/api";
 import { TournamentFormat } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +62,7 @@ const formatCategories = [
 ];
 
 export function TournamentFormatsManagement() {
+  const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFormat, setEditingFormat] = useState<TournamentFormat | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -89,6 +91,18 @@ export function TournamentFormatsManagement() {
       queryClient.invalidateQueries({ queryKey: ["tournament-formats"] });
       setDialogOpen(false);
       form.reset();
+      toast({
+        title: "Success",
+        description: "Tournament format created successfully",
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = error?.message || error?.error || "Failed to create tournament format";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     },
   });
 
@@ -101,6 +115,18 @@ export function TournamentFormatsManagement() {
       setDialogOpen(false);
       setEditingFormat(null);
       form.reset();
+      toast({
+        title: "Success",
+        description: "Tournament format updated successfully",
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = error?.message || error?.error || "Failed to update tournament format";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     },
   });
 
@@ -110,6 +136,18 @@ export function TournamentFormatsManagement() {
       queryClient.invalidateQueries({ queryKey: ["tournament-formats"] });
       setDeleteDialogOpen(false);
       setFormatToDelete(null);
+      toast({
+        title: "Success",
+        description: "Tournament format deleted successfully",
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = error?.message || error?.error || "Failed to delete tournament format";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     },
   });
 

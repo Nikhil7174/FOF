@@ -9,7 +9,7 @@ const createConvenorSchema = z.object({
   name: z.string().min(1),
   phone: z.string().min(1),
   email: z.string().email(),
-  sportId: z.string().uuid().optional(),
+  sportId: z.string().optional(),
 });
 
 // List all convenors

@@ -67,6 +67,18 @@ router.post("/", authenticate, requireRole("admin"), async (req: AuthRequest, re
   try {
     const data = createFormatSchema.parse(req.body);
 
+    // Check if format with this category already exists
+    const existing = await prisma.tournamentFormat.findUnique({
+      where: { category: data.category },
+    });
+
+    if (existing) {
+      return res.status(409).json({ 
+        error: "A format with this category already exists",
+        message: `A tournament format with category "${data.category}" already exists. Please edit the existing format or choose a different category.`
+      });
+    }
+
     const format = await prisma.tournamentFormat.create({
       data,
     });
@@ -77,7 +89,10 @@ router.post("/", authenticate, requireRole("admin"), async (req: AuthRequest, re
       return res.status(400).json({ error: "Invalid input", details: error.errors });
     }
     if (error.code === "P2002") {
-      return res.status(409).json({ error: "A format with this category already exists" });
+      return res.status(409).json({ 
+        error: "A format with this category already exists",
+        message: `A tournament format with category "${req.body.category}" already exists. Please edit the existing format or choose a different category.`
+      });
     }
     res.status(500).json({ error: error.message || "Failed to create tournament format" });
   }

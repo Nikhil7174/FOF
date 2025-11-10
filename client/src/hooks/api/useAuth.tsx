@@ -56,7 +56,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  // Return a safe default instead of throwing an error
+  // This allows components to work even if AuthProvider is not yet initialized
+  if (!ctx) {
+    return {
+      user: null,
+      loading: true,
+      login: async () => {
+        throw new Error("AuthProvider not initialized");
+      },
+      logout: async () => {},
+    };
+  }
   return ctx;
 }
 

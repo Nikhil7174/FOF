@@ -58,9 +58,17 @@ export function CommunityParticipantsTable() {
 
   const getSportsForParticipant = (sportIds: string[]) => {
     return sportIds
-      .map((id) => sports.find((s: any) => s.id === id))
-      .filter(Boolean)
-      .map((s: any) => s.name);
+      .map((id) => {
+        const sport = sports.find((s: any) => s.id === id);
+        if (!sport) return null;
+        // If it's a child sport, show parent - child format
+        if (sport.parentId) {
+          const parent = sports.find((s: any) => s.id === sport.parentId);
+          return parent ? `${parent.name} - ${sport.name}` : sport.name;
+        }
+        return sport.name;
+      })
+      .filter(Boolean);
   };
 
   const isLoading = isLoadingParticipants || isLoadingSports;

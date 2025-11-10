@@ -14,8 +14,14 @@ import * as z from "zod";
 const communityUpdateSchema = z.object({
   name: z.string().optional(),
   contactPerson: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().email().optional(),
+  phone: z.string()
+    .optional()
+    .refine((val) => !val || val.trim() === "" || /^[\d\s\-\+\(\)]+$/.test(val), {
+      message: "Phone number can only contain digits, spaces, hyphens, plus, and parentheses",
+    }),
+  email: z.string()
+    .email("Invalid email address")
+    .optional(),
   active: z.boolean().optional(),
 });
 
@@ -129,7 +135,12 @@ export function CommunityDetailView() {
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
                 {isEditing ? (
-                  <Input id="phone" {...form.register("phone")} placeholder="Phone" />
+                  <>
+                    <Input id="phone" {...form.register("phone")} placeholder="Phone" />
+                    {form.formState.errors.phone && (
+                      <p className="text-sm text-destructive">{form.formState.errors.phone.message}</p>
+                    )}
+                  </>
                 ) : (
                   <Input value={community.phone || "Not set"} disabled className="bg-muted" />
                 )}
@@ -139,7 +150,12 @@ export function CommunityDetailView() {
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               {isEditing ? (
-                <Input id="email" type="email" {...form.register("email")} placeholder="Email" />
+                <>
+                  <Input id="email" type="email" {...form.register("email")} placeholder="Email" />
+                  {form.formState.errors.email && (
+                    <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
+                  )}
+                </>
               ) : (
                 <Input value={community.email || "Not set"} disabled className="bg-muted" />
               )}

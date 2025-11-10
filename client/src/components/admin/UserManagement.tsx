@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api";
 import { User } from "@/types";
@@ -15,13 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SportSelect } from "@/components/ui/sport-select";
 import {
   Table,
   TableBody,
@@ -280,22 +274,14 @@ export function UserManagement() {
 
                 <div className="space-y-2">
                   <Label htmlFor="sportId">Sport</Label>
-                  <Select
+                  <SportSelect
                     value={form.watch("sportId") || "none"}
                     onValueChange={(value) => form.setValue("sportId", value === "none" ? undefined : value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a sport" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {sports.filter((s: any) => !s.parentId).map((parent: any) => (
-                        <SelectItem key={parent.id} value={parent.id}>
-                          {parent.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="Select a sport"
+                    includeNoneOption={true}
+                    noneOptionLabel="None"
+                    noneOptionValue="none"
+                  />
                 </div>
               </div>
 
@@ -345,7 +331,17 @@ export function UserManagement() {
             ) : (
               users.map((user) => {
                 const communityName = communities.find((c) => c.id === user.communityId)?.name || "-";
-                const sportName = sports.find((s) => s.id === user.sportId)?.name || "-";
+                const getSportName = (sportId?: string) => {
+                  if (!sportId) return "-";
+                  const sport = sports.find((s) => s.id === sportId);
+                  if (!sport) return "-";
+                  if (sport.parentId) {
+                    const parent = sports.find((s) => s.id === sport.parentId);
+                    return parent ? `${parent.name} - ${sport.name}` : sport.name;
+                  }
+                  return sport.name;
+                };
+                const sportName = getSportName(user.sportId);
                 return (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.username}</TableCell>

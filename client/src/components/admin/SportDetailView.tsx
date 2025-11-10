@@ -39,27 +39,34 @@ export function SportDetailView() {
   });
 
   useEffect(() => {
-    if (sport && !isEditing) {
+    if (sport?.id && !isEditing) {
       form.reset({
-        venue: sport.venue || "",
-        timings: sport.timings || "",
-        date: sport.date || "",
-        gender: sport.gender || null,
-        ageLimitMin: sport.ageLimit?.min,
-        ageLimitMax: sport.ageLimit?.max,
+        venue: sport.venue ?? "",
+        timings: sport.timings ?? "",
+        date: sport.date ?? "",
+        gender: sport.gender ?? null,
+        ageLimitMin: sport.ageLimit?.min ?? undefined,
+        ageLimitMax: sport.ageLimit?.max ?? undefined,
       });
     }
   }, [sport, isEditing, form]);
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<SportUpdateFormData> }) => {
+      if (!id) {
+        throw new Error("Sport ID is required for update");
+      }
+      
       const sportData: any = {};
-      if (data.venue !== undefined) sportData.venue = data.venue || undefined;
-      if (data.timings !== undefined) sportData.timings = data.timings || undefined;
-      if (data.date !== undefined) sportData.date = data.date || undefined;
-      if (data.gender !== undefined) sportData.gender = data.gender || undefined;
+      if (data.venue !== undefined) sportData.venue = data.venue?.trim() || null;
+      if (data.timings !== undefined) sportData.timings = data.timings?.trim() || null;
+      if (data.date !== undefined) sportData.date = data.date || null;
+      if (data.gender !== undefined) sportData.gender = data.gender ?? null;
       if (data.ageLimitMin !== undefined || data.ageLimitMax !== undefined) {
-        sportData.ageLimit = { min: data.ageLimitMin, max: data.ageLimitMax };
+        sportData.ageLimit = { 
+          min: data.ageLimitMin ?? null, 
+          max: data.ageLimitMax ?? null 
+        };
       }
       return api.updateSport(id, sportData);
     },
@@ -74,18 +81,24 @@ export function SportDetailView() {
   }
 
   const handleSave = (data: SportUpdateFormData) => {
-    updateMutation.mutate({ id: sport.id, data });
+    if (sport?.id) {
+      updateMutation.mutate({ id: sport.id, data });
+    } else {
+      console.error("Cannot save: sport ID is missing");
+    }
   };
 
   const handleCancel = () => {
-    form.reset({
-      venue: sport.venue || "",
-      timings: sport.timings || "",
-      date: sport.date || "",
-      gender: sport.gender || null,
-      ageLimitMin: sport.ageLimit?.min,
-      ageLimitMax: sport.ageLimit?.max,
-    });
+    if (sport?.id) {
+      form.reset({
+        venue: sport.venue ?? "",
+        timings: sport.timings ?? "",
+        date: sport.date ?? "",
+        gender: sport.gender ?? null,
+        ageLimitMin: sport.ageLimit?.min ?? undefined,
+        ageLimitMax: sport.ageLimit?.max ?? undefined,
+      });
+    }
     setIsEditing(false);
   };
 

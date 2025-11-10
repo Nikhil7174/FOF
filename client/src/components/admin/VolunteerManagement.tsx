@@ -6,7 +6,7 @@ import { VolunteerEntry } from "@/types";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SportSelect } from "@/components/ui/sport-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -41,8 +41,7 @@ export function VolunteerManagement() {
       console.log("useQuery - Result length:", result?.length || 0);
       return result;
     },
-    staleTime: 0,
-    cacheTime: 0,
+    retry: 2, // Add retry logic
   });
   const { data: departments = [], isLoading: isLoadingDepartments } = useQuery({ queryKey: ["departments"], queryFn: api.listDepartments });
 
@@ -50,8 +49,8 @@ export function VolunteerManagement() {
   useEffect(() => {
     console.log("Volunteers data:", volunteers);
     console.log("Volunteers count:", volunteers?.length || 0);
-    console.log("Volunteers loading:", volunteersLoading);
-  }, [volunteers, volunteersLoading]);
+    console.log("Volunteers loading:", isLoadingVolunteers);
+  }, [volunteers, isLoadingVolunteers]);
 
   const [selectedSportId, setSelectedSportId] = useState<string>("none");
 
@@ -118,17 +117,14 @@ export function VolunteerManagement() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div className="space-y-2 md:col-span-1">
             <Label htmlFor="sport">Filter by Sport</Label>
-            <Select value={selectedSportId} onValueChange={setSelectedSportId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a sport" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">All sports</SelectItem>
-                {sports.filter((s: any) => !s.parentId).map((s: any) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SportSelect
+              value={selectedSportId}
+              onValueChange={setSelectedSportId}
+              placeholder="Select a sport"
+              includeNoneOption={true}
+              noneOptionLabel="All sports"
+              noneOptionValue="none"
+            />
           </div>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -169,7 +165,7 @@ export function VolunteerManagement() {
                     }}>
                       <CommandInput placeholder="Search volunteers..." />
                       <CommandList className="max-h-60">
-                        {volunteersLoading ? (
+                        {isLoadingVolunteers ? (
                           <div className="px-2 py-6 text-center text-sm text-muted-foreground">
                             Loading volunteers...
                           </div>
@@ -238,19 +234,11 @@ export function VolunteerManagement() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="sportId">Sport *</Label>
-                <Select
+                <SportSelect
                   value={form.watch("sportId")}
                   onValueChange={(value) => form.setValue("sportId", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select sport" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sports.filter((s: any) => !s.parentId).map((s: any) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Select sport"
+                />
                 {form.formState.errors.sportId && (
                   <p className="text-sm text-red-500">{form.formState.errors.sportId.message}</p>
                 )}
@@ -305,7 +293,17 @@ export function VolunteerManagement() {
                   </TableRow>
                 ) : (
                   filtered.map((v) => {
-                    const sportName = sports.find((s: any) => s.id === v.sportId)?.name || "-";
+                    const getSportName = (sportId?: string) => {
+                      if (!sportId) return "-";
+                      const sport = sports.find((s: any) => s.id === sportId);
+                      if (!sport) return "-";
+                      if (sport.parentId) {
+                        const parent = sports.find((s: any) => s.id === sport.parentId);
+                        return parent ? `${parent.name} - ${sport.name}` : sport.name;
+                      }
+                      return sport.name;
+                    };
+                    const sportName = getSportName(v.sportId);
                     const departmentName = departments.find((d: any) => d.id === v.departmentId)?.name || v.departmentId;
                     return (
                       <TableRow key={v.id}>

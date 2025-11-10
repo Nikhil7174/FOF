@@ -15,7 +15,9 @@ import emailRoutes from "./routes/email";
 import communityContactRoutes from "./routes/community-contacts";
 import convenorRoutes from "./routes/convenors";
 import tournamentFormatRoutes from "./routes/tournament-formats";
+import leaderboardRoutes from "./routes/leaderboard";
 import { errorHandler } from "./middleware/errorHandler";
+import { verifyEmailConfig } from "./utils/email";
 
 dotenv.config();
 
@@ -54,14 +56,18 @@ app.use("/api/email", emailRoutes);
 app.use("/api/community-contacts", communityContactRoutes);
 app.use("/api/convenors", convenorRoutes);
 app.use("/api/tournament-formats", tournamentFormatRoutes);
+app.use("/api/leaderboard", leaderboardRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
 // Start server
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+  
+  // Verify email configuration
+  await verifyEmailConfig();
 });
 
 // Graceful shutdown

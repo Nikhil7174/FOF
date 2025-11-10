@@ -1,7 +1,7 @@
 // API client for backend server
 
 // Import types from shared types file
-import type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat } from "@/types";
+import type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry } from "@/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
@@ -35,21 +35,34 @@ async function request<T>(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  const url = `${API_BASE_URL}${endpoint}`;
+  console.log(`[API] ${options.method || "GET"} ${url}`, options.body ? JSON.parse(options.body as string) : "");
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || error.message || `HTTP ${response.status}`);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    console.log(`[API] Response status: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      console.error(`[API] Error response:`, error);
+      throw new Error(error.error || error.message || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log(`[API] Success:`, data);
+    return data;
+  } catch (error: any) {
+    console.error(`[API] Request failed:`, error);
+    throw error;
   }
-
-  return response.json();
 }
 
 // Re-export types for convenience
-export type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat };
+export type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry };
 
 // API methods
 export const api = {
@@ -95,6 +108,24 @@ export const api = {
     const response = await request<{ user: User; token: string }>("/auth/signup", {
       method: "POST",
       body: JSON.stringify({ role, username, password, ...extra }),
+    });
+    setToken(response.token);
+    return response.user;
+  },
+
+  async sportsAdminLogin(email: string, password: string, sportId: string): Promise<User> {
+    const response = await request<{ user: User; token: string }>("/auth/sports-admin/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password, sportId }),
+    });
+    setToken(response.token);
+    return response.user;
+  },
+
+  async communityAdminLogin(email: string, password: string, communityId: string): Promise<User> {
+    const response = await request<{ user: User; token: string }>("/auth/community-admin/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password, communityId }),
     });
     setToken(response.token);
     return response.user;
@@ -288,6 +319,14 @@ export const api = {
     return true;
   },
 
+  async sendContactMessage(name: string, email: string, message: string): Promise<boolean> {
+    await request("/email/contact", {
+      method: "POST",
+      body: JSON.stringify({ name, email, message }),
+    });
+    return true;
+  },
+
   async listOutbox(): Promise<Array<{ id: string; to: string; from: string; subject: string; body: string; createdAt: string }>> {
     return request<Array<{ id: string; to: string; from: string; subject: string; body: string; createdAt: string }>>("/email/outbox");
   },
@@ -409,6 +448,59 @@ export const api = {
 
   async deleteTournamentFormat(id: string): Promise<boolean> {
     await request(`/tournament-formats/${id}`, { method: "DELETE" });
+    return true;
+  },
+
+  // Leaderboard
+  async getLeaderboard(): Promise<LeaderboardRanking[]> {
+    return request<LeaderboardRanking[]>("/leaderboard");
+  },
+
+  async getLeaderboardBySport(sportId: string): Promise<SportLeaderboardEntry[]> {
+    return request<SportLeaderboardEntry[]>(`/leaderboard/sport/${sportId}`);
+  },
+
+  async getLeaderboardByCommunity(communityId: string): Promise<LeaderboardEntry[]> {
+    return request<LeaderboardEntry[]>(`/leaderboard/community/${communityId}`);
+  },
+
+  async listLeaderboardEntries(): Promise<LeaderboardEntry[]> {
+    return request<LeaderboardEntry[]>("/leaderboard/entries");
+  },
+
+  async createLeaderboardEntry(input: {
+    communityId: string;
+    sportId: string;
+    score: number;
+    position?: number | null;
+    medalType?: "gold" | "silver" | "bronze" | "none";
+    notes?: string | null;
+  }): Promise<LeaderboardEntry> {
+    return request<LeaderboardEntry>("/leaderboard", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateLeaderboardEntry(
+    id: string,
+    input: Partial<{
+      communityId: string;
+      sportId: string;
+      score: number;
+      position: number | null;
+      medalType: "gold" | "silver" | "bronze" | "none";
+      notes: string | null;
+    }>
+  ): Promise<LeaderboardEntry> {
+    return request<LeaderboardEntry>(`/leaderboard/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteLeaderboardEntry(id: string): Promise<boolean> {
+    await request(`/leaderboard/${id}`, { method: "DELETE" });
     return true;
   },
 };

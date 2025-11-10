@@ -17,8 +17,20 @@ export default function Calendar() {
     queryFn: () => api.listSports(),
   });
 
-  // Create a map of sportId to sport name
-  const sportMap = new Map(sports.map((s) => [s.id, s.name]));
+  // Helper function to get sport name with parent category for sub-categories
+  const getSportName = (sportId: string) => {
+    const sport = sports.find((s) => s.id === sportId);
+    if (!sport) return `Sport ${sportId}`;
+    // If it's a child sport, show parent - child format
+    if (sport.parentId) {
+      const parent = sports.find((s) => s.id === sport.parentId);
+      return parent ? `${parent.name} - ${sport.name}` : sport.name;
+    }
+    return sport.name;
+  };
+
+  // Create a map of sportId to sport name (with parent for sub-categories)
+  const sportMap = new Map(sports.map((s) => [s.id, getSportName(s.id)]));
 
   // Group events by date
   const groupedEvents = calendarEvents.reduce((acc, event) => {

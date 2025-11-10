@@ -15,7 +15,7 @@ const createVolunteerSchema = z.object({
   email: z.string().email(),
   phone: z.string().min(1),
   departmentId: z.string().uuid(),
-  sportId: z.string().uuid().optional(),
+  sportId: z.string().optional(),
 });
 
 // List volunteers

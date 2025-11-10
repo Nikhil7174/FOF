@@ -36,6 +36,13 @@ enum SportType {
   team
 }
 
+enum MedalType {
+  gold
+  silver
+  bronze
+  none
+}
+
 model User {
   id          String   @id @default(uuid())
   username    String   @unique
@@ -121,14 +128,18 @@ model Community {
   phone        String
   email        String    @unique
   password     String?
+  adminEmail   String?   @unique
+  adminPassword String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   users       User[]
   participants Participant[]
   contacts    CommunityContact[]
+  leaderboardEntries LeaderboardEntry[]
 
   @@index([name])
+  @@index([adminEmail])
 }
 
 model Sport {
@@ -146,6 +157,8 @@ model Sport {
   ageLimitMax    Int?
   convenorId     String?   @unique
   rules          String?
+  adminEmail     String?   @unique
+  adminPassword  String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -156,10 +169,12 @@ model Sport {
   participants  ParticipantSport[]
   calendarItems CalendarItem[]
   convenor      Convenor?           @relation(fields: [convenorId], references: [id])
+  leaderboardEntries LeaderboardEntry[]
 
   @@index([parentId])
   @@index([name])
   @@index([convenorId])
+  @@index([adminEmail])
 }
 
 model Department {
@@ -243,6 +258,26 @@ model TournamentFormat {
 
   @@unique([category])
   @@index([category])
+}
+
+model LeaderboardEntry {
+  id          String    @id @default(uuid())
+  communityId String
+  sportId     String
+  score       Int       @default(0)
+  position    Int?
+  medalType   MedalType @default(none)
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  sport     Sport     @relation(fields: [sportId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, sportId])
+  @@index([communityId])
+  @@index([sportId])
+  @@index([score])
 }
 
 

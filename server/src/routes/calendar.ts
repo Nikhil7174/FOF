@@ -6,7 +6,7 @@ import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
 const router = Router();
 
 const createCalendarItemSchema = z.object({
-  sportId: z.string().uuid(),
+  sportId: z.string().min(1),
   date: z.string().or(z.date()),
   time: z.string().min(1),
   venue: z.string().min(1),

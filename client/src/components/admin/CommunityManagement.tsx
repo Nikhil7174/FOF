@@ -44,17 +44,35 @@ const communitySchema = z.object({
   name: z.string().min(1, "Name is required"),
   active: z.boolean(),
   contactPerson: z.string().min(1, "Contact person is required"),
-  phone: z.string().min(1, "Phone is required"),
-  email: z.string().email("Invalid email address"),
+  phone: z.string()
+    .min(1, "Phone is required")
+    .refine((val) => /^[\d\s\-\+\(\)]+$/.test(val), {
+      message: "Phone number can only contain digits, spaces, hyphens, plus, and parentheses",
+    }),
+  email: z.string()
+    .min(1, "Email is required")
+    .email("Invalid email address"),
   password: z.string().optional(),
+  adminEmail: z.string()
+    .email("Invalid email address")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  adminPassword: z.string().optional().nullable(),
 });
 
 type CommunityFormData = z.infer<typeof communitySchema>;
 
 const contactSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  phone: z.string().min(1, "Phone is required"),
-  email: z.string().email("Invalid email address"),
+  phone: z.string()
+    .min(1, "Phone is required")
+    .refine((val) => /^[\d\s\-\+\(\)]+$/.test(val), {
+      message: "Phone number can only contain digits, spaces, hyphens, plus, and parentheses",
+    }),
+  email: z.string()
+    .min(1, "Email is required")
+    .email("Invalid email address"),
 });
 
 type ContactFormData = z.infer<typeof contactSchema>;
@@ -86,20 +104,42 @@ export function CommunityManagement() {
       phone: "",
       email: "",
       password: "",
+      adminEmail: "",
+      adminPassword: "",
     },
   });
 
   const createMutation = useMutation({
     mutationFn: (data: CommunityFormData) => {
-      if (!data.password || data.password === "***") {
+      console.log("Create mutation called with data:", data);
+      if (!data.password || data.password === "***" || data.password.trim() === "") {
+        // Set form error for password field
+        form.setError("password", {
+          type: "manual",
+          message: "Password is required for new communities",
+        });
         throw new Error("Password is required for new communities");
       }
       return api.createCommunity(data);
     },
     onSuccess: () => {
+      console.log("Community created successfully");
       queryClient.invalidateQueries({ queryKey: ["communities"] });
       setDialogOpen(false);
       form.reset();
+    },
+    onError: (error: any) => {
+      console.error("Error creating community:", error);
+      const errorMessage = error?.message || error?.error || "Unknown error";
+      
+      // If it's a password error, the form error is already set
+      if (errorMessage.includes("Password")) {
+        // Error already set in form, just show alert
+        alert(`Error: ${errorMessage}`);
+      } else {
+        // For other errors, show alert
+        alert(`Error creating community: ${errorMessage}`);
+      }
     },
   });
 
@@ -109,6 +149,10 @@ export function CommunityManagement() {
       const updateData = { ...data };
       if (data.password === "***" || !data.password) {
         delete updateData.password;
+      }
+      // Only include adminPassword in update if it's provided and not the masked value
+      if (data.adminPassword === "***" || !data.adminPassword) {
+        delete updateData.adminPassword;
       }
       return api.updateCommunity(id, updateData);
     },
@@ -139,6 +183,8 @@ export function CommunityManagement() {
         phone: community.phone,
         email: community.email,
         password: "***", // Mask existing password
+        adminEmail: community.adminEmail ?? "",
+        adminPassword: community.adminPassword ? "***" : "", // Mask existing password
       });
     } else {
       setEditingCommunity(null);
@@ -148,10 +194,39 @@ export function CommunityManagement() {
   };
 
   const handleSubmit = (data: CommunityFormData) => {
+    console.log("Form submitted with data:", data);
+    console.log("Form errors:", form.formState.errors);
+    console.log("Editing community:", editingCommunity);
+    
+    // Validate password for new communities before submitting
+    if (!editingCommunity) {
+      if (!data.password || data.password.trim() === "") {
+        form.setError("password", {
+          type: "manual",
+          message: "Password is required for new communities",
+        });
+        return; // Don't proceed with mutation
+      }
+    }
+    
     if (editingCommunity) {
+      console.log("Calling update mutation");
       updateMutation.mutate({ id: editingCommunity.id, data });
     } else {
+      console.log("Calling create mutation");
       createMutation.mutate(data);
+    }
+  };
+
+  const handleSubmitError = (errors: any) => {
+    console.log("Form validation errors:", errors);
+    console.log("Form state errors:", form.formState.errors);
+    // Show alert with validation errors
+    const errorMessages = Object.entries(errors || {})
+      .map(([field, error]: [string, any]) => `${field}: ${error?.message || "Invalid"}`)
+      .join("\n");
+    if (errorMessages) {
+      alert(`Form validation failed:\n${errorMessages}`);
     }
   };
 
@@ -276,7 +351,17 @@ export function CommunityManagement() {
                   : "Fill in the details to create a new community."}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log("Form onSubmit triggered");
+                console.log("Form values:", form.getValues());
+                console.log("Form errors:", form.formState.errors);
+                form.handleSubmit(handleSubmit, handleSubmitError)(e);
+              }} 
+              className="space-y-4"
+            >
               <div className="space-y-2">
                 <Label htmlFor="name">Community Name *</Label>
                 <Input id="name" {...form.register("name")} placeholder="Community name" />
@@ -323,6 +408,33 @@ export function CommunityManagement() {
                 {form.formState.errors.password && (
                   <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
                 )}
+              </div>
+
+              <div className="space-y-4 border-t pt-4">
+                <Label className="text-base font-semibold">Community Admin Credentials</Label>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="adminEmail">Admin Email</Label>
+                    <Input id="adminEmail" type="email" {...form.register("adminEmail")} placeholder="admin@community.com" />
+                    {form.formState.errors.adminEmail && (
+                      <p className="text-sm text-destructive">{form.formState.errors.adminEmail.message}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="adminPassword">
+                      Admin Password {editingCommunity && "(leave blank to keep current)"}
+                    </Label>
+                    <Input
+                      id="adminPassword"
+                      type="password"
+                      {...form.register("adminPassword")}
+                      placeholder={editingCommunity ? "Leave blank to keep current" : "Password for community admin"}
+                    />
+                    {form.formState.errors.adminPassword && (
+                      <p className="text-sm text-destructive">{form.formState.errors.adminPassword.message}</p>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center space-x-2">

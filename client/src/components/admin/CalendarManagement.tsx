@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api";
 import { CalendarItem, SportRecord } from "@/types";
@@ -15,13 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SportSelect } from "@/components/ui/sport-select";
 import {
   Table,
   TableBody,
@@ -41,12 +35,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Edit, Trash2 } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
 const calendarItemSchema = z.object({
-  sportId: z.string().uuid("Please select a sport"),
+  sportId: z.string().min(1, "Please select a sport"),
   date: z.string().min(1, "Date is required"),
   time: z.string().min(1, "Time is required"),
   venue: z.string().min(1, "Venue is required"),
@@ -160,8 +154,15 @@ export function CalendarManagement() {
 
   const getSportName = (sportId: string) => {
     const sport = sports.find((s) => s.id === sportId);
-    return sport?.name || "Unknown";
+    if (!sport) return "Unknown";
+    // If it's a child sport, show parent - child format
+    if (sport.parentId) {
+      const parent = sports.find((s) => s.id === sport.parentId);
+      return parent ? `${parent.name} - ${sport.name}` : sport.name;
+    }
+    return sport.name;
   };
+
 
   return (
     <div className="space-y-4">
@@ -184,21 +185,17 @@ export function CalendarManagement() {
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="sportId">Sport *</Label>
-                <Select
-                  value={form.watch("sportId")}
-                  onValueChange={(value) => form.setValue("sportId", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a sport" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sports.map((sport) => (
-                      <SelectItem key={sport.id} value={sport.id}>
-                        {sport.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  name="sportId"
+                  control={form.control}
+                  render={({ field }) => (
+                    <SportSelect
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      placeholder="Select a sport"
+                    />
+                  )}
+                />
                 {form.formState.errors.sportId && (
                   <p className="text-sm text-destructive">{form.formState.errors.sportId.message}</p>
                 )}

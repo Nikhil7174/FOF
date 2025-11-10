@@ -99,7 +99,13 @@ export default function UserDashboard() {
 
   const getSportName = (sportId: string) => {
     const sport = sports.find((s: any) => s.id === sportId);
-    return sport?.name || sportId;
+    if (!sport) return sportId;
+    // If it's a child sport, show parent - child format
+    if (sport.parentId) {
+      const parent = sports.find((s: any) => s.id === sport.parentId);
+      return parent ? `${parent.name} - ${sport.name}` : sport.name;
+    }
+    return sport.name;
   };
 
   const communityName = participant

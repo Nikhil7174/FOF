@@ -10,19 +10,41 @@ import { UserManagement } from "@/components/admin/UserManagement";
 import { VolunteerManagement } from "@/components/admin/VolunteerManagement";
 import { CalendarManagement } from "@/components/admin/CalendarManagement";
 import { TournamentFormatsManagement } from "@/components/admin/TournamentFormatsManagement";
+import { useAuth } from "@/hooks/api/useAuth";
 
 export default function AdminDashboard() {
-  const { data: participants = [], isLoading: isLoadingParticipants } = useQuery({ queryKey: ["participants"], queryFn: api.listParticipants });
-  const { data: communities = [], isLoading: isLoadingCommunities } = useQuery({ queryKey: ["communities"], queryFn: api.listCommunities });
+  const { user } = useAuth(); // Add this to check auth status
+  
+  const { data: users = [], isLoading: isLoadingUsers } = useQuery({ 
+    queryKey: ["users"], 
+    queryFn: api.listUsers,
+    enabled: !!user, // Only fetch when user is authenticated
+    retry: 2, // Retry failed requests
+  });
+  
+  const { data: volunteers = [], isLoading: isLoadingVolunteers } = useQuery({ 
+    queryKey: ["volunteers"], 
+    queryFn: () => api.listVolunteers(),
+    enabled: !!user, // Only fetch when user is authenticated
+    retry: 2, // Retry failed requests
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+  });
+  
+  const { data: sports = [], isLoading: isLoadingSports } = useQuery({ 
+    queryKey: ["sports"], 
+    queryFn: api.listSports,
+    enabled: !!user,
+    retry: 2,
+  });
+  
+  const { data: communities = [], isLoading: isLoadingCommunities } = useQuery({ 
+    queryKey: ["communities"], 
+    queryFn: api.listCommunities,
+    enabled: !!user,
+    retry: 2,
+  });
 
-  const totals = participants.reduce((acc, p) => {
-    acc.total++;
-    acc[p.status]++;
-    return acc;
-  }, { total: 0, pending: 0, accepted: 0, rejected: 0 } as any);
-
-  const byCommunity: Record<string, number> = {};
-  for (const p of participants) byCommunity[p.communityId] = (byCommunity[p.communityId] || 0) + 1;
+  const isLoading = isLoadingUsers || isLoadingVolunteers || isLoadingSports || isLoadingCommunities;
 
   return (
     <div className="min-h-screen bg-background">
@@ -42,44 +64,20 @@ export default function AdminDashboard() {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
-            {isLoadingParticipants || isLoadingCommunities ? (
-              <>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Skeleton className="h-24" />
-                  <Skeleton className="h-24" />
-                  <Skeleton className="h-24" />
-                  <Skeleton className="h-24" />
-                </div>
-                <h2 className="text-xl font-semibold mb-3">By Community</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Skeleton className="h-32" />
-                  <Skeleton className="h-32" />
-                  <Skeleton className="h-32" />
-                </div>
-              </>
+            {isLoading ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Skeleton className="h-24" />
+                <Skeleton className="h-24" />
+                <Skeleton className="h-24" />
+                <Skeleton className="h-24" />
+              </div>
             ) : (
-              <>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Stat title="Registered" value={totals.total} />
-                  <Stat title="Accepted" value={totals.accepted} />
-                  <Stat title="Pending" value={totals.pending} />
-                  <Stat title="Rejected" value={totals.rejected} />
-                </div>
-
-                <h2 className="text-xl font-semibold mb-3">By Community</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {communities.map((c) => (
-                    <Card key={c.id}>
-                      <CardHeader>
-                        <CardTitle className="text-lg">{c.name}</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">{byCommunity[c.id] || 0}</div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Stat title="Users" value={users.length} />
+                <Stat title="Volunteers" value={volunteers.length} />
+                <Stat title="Sports" value={sports.length} />
+                <Stat title="Communities" value={communities.length} />
+              </div>
             )}
           </TabsContent>
 

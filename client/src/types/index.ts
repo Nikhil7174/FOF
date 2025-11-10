@@ -68,6 +68,8 @@ export interface SportRecord {
   ageLimitMin?: number; // Alternative format
   ageLimitMax?: number; // Alternative format
   rules?: string;
+  adminEmail?: string | null;
+  adminPassword?: string | null;
 }
 
 export interface CommunityRecord {
@@ -78,6 +80,8 @@ export interface CommunityRecord {
   phone: string;
   email: string;
   password?: string; // Optional password for community access
+  adminEmail?: string | null;
+  adminPassword?: string | null;
 }
 
 export interface DepartmentRecord {
@@ -126,5 +130,47 @@ export interface TournamentFormat {
   content: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface LeaderboardEntry {
+  id: string;
+  communityId: string;
+  sportId: string;
+  score: number;
+  position?: number | null;
+  medalType: "gold" | "silver" | "bronze" | "none";
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  community?: {
+    id: string;
+    name: string;
+    active?: boolean;
+  };
+  sport?: {
+    id: string;
+    name: string;
+  };
+}
+
+export interface LeaderboardRanking {
+  communityId: string;
+  communityName: string;
+  totalScore: number;
+  entryCount: number;
+  rank: number;
+}
+
+export interface SportLeaderboardEntry {
+  id: string;
+  communityId: string;
+  communityName: string;
+  sportId: string;
+  sportName: string;
+  score: number;
+  position?: number | null;
+  medalType: "gold" | "silver" | "bronze" | "none";
+  notes?: string | null;
+  rank: number;
 }
 
