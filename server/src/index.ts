@@ -1,4 +1,6 @@
-import express from "express";
+// server.ts (replace your current file with this)
+
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
@@ -22,22 +24,47 @@ import { verifyEmailConfig } from "./utils/email";
 
 dotenv.config();
 
-const databaseUrl = normalizeDatabaseUrl(process.env.DATABASE_URL);
+/**
+ * Normalize and log DB connection target so deploy logs show it.
+ * (normalizeDatabaseUrl is kept as you had it)
+ */
+const databaseUrl = normalizeDatabaseUrl(process.env.DATABASE_URL || "");
 
 try {
   const { hostname, port, protocol } = new URL(databaseUrl);
-  console.log(`Database connection target: ${protocol}//${hostname}${port ? `:${port}` : ""}`);
+  console.log(
+    `Database connection target: ${protocol}//${hostname}${port ? `:${port}` : ""}`
+  );
 } catch (error) {
   console.warn("Unable to determine database connection target:", error);
 }
 
+/**
+ * Initialize Express & Prisma
+ */
+export const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: databaseUrl,
+    },
+  },
+});
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+/**
+ * CORS configuration
+ *
+ * - Keep a small explicit allowlist of frontends / local dev URLs
+ * - Place cors() BEFORE JSON parsing and route registration
+ * - Use app.options('*', cors()) so preflight is handled automatically
+ */
 const defaultFrontendUrl = "https://fof-iota.vercel.app";
 const FRONTEND_URL = process.env.FRONTEND_URL || defaultFrontendUrl;
 const additionalOrigins = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
-  .map((origin) => origin.trim())
+  .map((s) => s.trim())
   .filter(Boolean);
 
 const staticOrigins = [
@@ -52,8 +79,10 @@ const staticOrigins = [
 
 const allowedOrigins = Array.from(new Set([...staticOrigins, ...additionalOrigins]));
 
+/** helper used by the cors origin callback */
 function isAllowedOrigin(origin?: string | null): boolean {
   if (!origin) {
+    // No origin (e.g., curl or same-origin) — allow
     return true;
   }
 
@@ -63,66 +92,67 @@ function isAllowedOrigin(origin?: string | null): boolean {
 
   try {
     const url = new URL(origin);
+    // Allow any vercel.app subdomain
     if (url.hostname.endsWith(".vercel.app")) {
       return true;
     }
-  } catch (error) {
-    console.warn("Failed to parse origin for CORS check:", origin, error);
+  } catch (err) {
+    console.warn("Failed to parse origin for CORS check:", origin, err);
   }
-
   return false;
 }
 
 console.log("CORS allowed origins:", allowedOrigins);
 
-// Initialize Prisma Client
-export const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: databaseUrl,
+/**
+ * CORS middleware — simple, reliable
+ * - origin: callback uses isAllowedOrigin
+ * - credentials enabled
+ */
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) {
+        return callback(null, true);
+      }
+      console.warn(`CORS blocked origin: ${origin}`);
+      return callback(new Error("Not allowed by CORS"));
     },
-  },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    exposedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+// Ensure preflight OPTIONS are handled by the cors middleware automatically
+app.options("*", cors());
+
+/**
+ * Simple request logger (helps confirm preflight hits the server)
+ * keep this before routes
+ */
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  console.log(`→ ${req.method} ${req.originalUrl} | Origin: ${req.headers.origin}`);
+  next();
 });
 
-// Middleware
-app.use(cors({
-  origin: (origin, callback) => {
-    if (isAllowedOrigin(origin)) {
-      return callback(null, true);
-    }
-    console.warn(`CORS blocked origin: ${origin}`);
-    return callback(new Error("Not allowed by CORS"));
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  exposedHeaders: ["Content-Type", "Authorization"],
-  optionsSuccessStatus: 200,
-  preflightContinue: false,
-}));
-
-// Explicit OPTIONS handler for preflight requests
-app.options("*", (req, res) => {
-  const origin = req.headers.origin;
-  if (origin && isAllowedOrigin(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
-    res.setHeader("Access-Control-Max-Age", "86400"); // 24 hours
-  }
-  res.sendStatus(200);
-});
-
+/**
+ * Body parsing
+ */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
-app.get("/health", (req, res) => {
+/**
+ * Health check
+ */
+app.get("/health", (_req: Request, res: Response) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Routes
+/**
+ * Mount routes (same as your original)
+ */
 app.use("/api/auth", authRoutes);
 app.use("/api/participants", participantRoutes);
 app.use("/api/volunteers", volunteerRoutes);
@@ -138,36 +168,54 @@ app.use("/api/convenors", convenorRoutes);
 app.use("/api/tournament-formats", tournamentFormatRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 
-// Error handling middleware (must be last)
-app.use(errorHandler);
+/**
+ * Error handling middleware (keep it last, before server close)
+ * Your existing `errorHandler` is used; we also catch CORS errors explicitly here.
+ */
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  console.error("Unhandled error:", err?.message ?? err);
+  if (err?.message === "Not allowed by CORS") {
+    return res.status(403).json({ error: "CORS not allowed for this origin" });
+  }
+  // Delegate to your error handler if you want more structured responses
+  try {
+    return errorHandler(err, _req as any, res as any, _next);
+  } catch (e) {
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 
-// Start server
+/**
+ * Start server
+ */
 const server = app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
-  
-  // Verify email configuration
-  await verifyEmailConfig();
+
+  // run any startup checks / verifications you had before
+  try {
+    await verifyEmailConfig();
+  } catch (err) {
+    console.warn("verifyEmailConfig failed:", err);
+  }
 });
 
-// Graceful shutdown
-process.on("SIGTERM", async () => {
-  console.log("SIGTERM signal received: closing HTTP server");
+/**
+ * Graceful shutdown — close HTTP server and disconnect prisma
+ */
+async function shutdown(signal: string) {
+  console.log(`${signal} received: closing HTTP server`);
   server.close(async () => {
     console.log("HTTP server closed");
-    await prisma.$disconnect();
+    try {
+      await prisma.$disconnect();
+      console.log("Prisma disconnected");
+    } catch (err) {
+      console.warn("Error disconnecting Prisma:", err);
+    }
     process.exit(0);
   });
-});
+}
 
-process.on("SIGINT", async () => {
-  console.log("SIGINT signal received: closing HTTP server");
-  server.close(async () => {
-    console.log("HTTP server closed");
-    await prisma.$disconnect();
-    process.exit(0);
-  });
-});
-
-
-
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
