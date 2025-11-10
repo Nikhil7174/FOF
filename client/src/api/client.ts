@@ -49,7 +49,12 @@ async function request<T>(
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }));
       console.error(`[API] Error response:`, error);
-      throw new Error(error.error || error.message || `HTTP ${response.status}`);
+      const errorMessage = error.error || error.message || `HTTP ${response.status}`;
+      const errorObj = new Error(errorMessage);
+      // Preserve original error details for better error handling
+      (errorObj as any).details = error.details;
+      (errorObj as any).originalError = error;
+      throw errorObj;
     }
 
     const data = await response.json();
@@ -131,6 +136,15 @@ export const api = {
     return response.user;
   },
 
+  async volunteerLogin(email: string, password: string): Promise<User> {
+    const response = await request<{ user: User; token: string }>("/auth/volunteer/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+    setToken(response.token);
+    return response.user;
+  },
+
   // Participants
   async listParticipants(): Promise<Participant[]> {
     return request<Participant[]>("/participants");
@@ -165,6 +179,33 @@ export const api = {
     }
   },
 
+  async getMyVolunteer(): Promise<VolunteerEntry | null> {
+    try {
+      return await request<VolunteerEntry>("/volunteers/me");
+    } catch {
+      return null;
+    }
+  },
+
+  async updateParticipantProfile(data: {
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    phone?: string;
+    nextOfKin?: {
+      firstName: string;
+      middleName?: string;
+      lastName: string;
+      phone: string;
+    };
+    teamName?: string;
+  }): Promise<Participant> {
+    return request<Participant>("/participants/me", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+
   async updateParticipantSports(sportIds: string[]): Promise<Participant> {
     return request<Participant>("/participants/me/sports", {
       method: "PATCH",
@@ -173,7 +214,9 @@ export const api = {
   },
 
   // Volunteers
-  async createVolunteer(input: Omit<VolunteerEntry, "id" | "createdAt">): Promise<VolunteerEntry> {
+  async createVolunteer(
+    input: Omit<VolunteerEntry, "id" | "createdAt"> & { password: string }
+  ): Promise<VolunteerEntry> {
     return request<VolunteerEntry>("/volunteers", {
       method: "POST",
       body: JSON.stringify(input),
@@ -315,6 +358,14 @@ export const api = {
     await request("/email/send", {
       method: "POST",
       body: JSON.stringify({ to, subject, body, from }),
+    });
+    return true;
+  },
+
+  async sendRegistrationConfirmation(to: string): Promise<boolean> {
+    await request("/email/registration-confirmation", {
+      method: "POST",
+      body: JSON.stringify({ to }),
     });
     return true;
   },

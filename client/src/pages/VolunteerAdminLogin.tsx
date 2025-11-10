@@ -30,6 +30,9 @@ export default function VolunteerAdminLogin() {
         return;
       }
       
+      // Wait a moment for the auth state to update before navigating
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       toast({ title: "Login Successful", description: "Welcome back!" });
       navigate("/volunteer-admin");
     } catch (err: any) {

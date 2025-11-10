@@ -3,9 +3,63 @@ import { Link } from "react-router-dom";
 import { Trophy, Users, Calendar } from "lucide-react";
 import heroImage from "@/assets/hero-sports.jpg";
 import { useAuth } from "@/hooks/api/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/api";
+import { useMemo } from "react";
 
 export const Hero = () => {
   const { user } = useAuth();
+  
+  // Fetch sports count
+  const { data: sports = [] } = useQuery({
+    queryKey: ["sports"],
+    queryFn: api.listSports,
+  });
+
+  // Fetch communities count
+  const { data: communities = [] } = useQuery({
+    queryKey: ["communities"],
+    queryFn: api.listCommunities,
+  });
+
+  // Fetch calendar events to get the earliest date
+  const { data: calendarEvents = [] } = useQuery({
+    queryKey: ["calendar"],
+    queryFn: api.listCalendar,
+  });
+
+  // Calculate days until the earliest event and get the start date
+  const { daysUntilEvent, startDate } = useMemo(() => {
+    if (!calendarEvents || calendarEvents.length === 0) {
+      return { daysUntilEvent: null, startDate: null };
+    }
+
+    // Find the earliest event date
+    const dates = calendarEvents
+      .map((event) => new Date(event.date))
+      .filter((date) => !isNaN(date.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    if (dates.length === 0) {
+      return { daysUntilEvent: null, startDate: null };
+    }
+
+    const earliestDate = dates[0];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    earliestDate.setHours(0, 0, 0, 0);
+
+    const diffTime = earliestDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return {
+      daysUntilEvent: diffDays >= 0 ? diffDays : 0,
+      startDate: earliestDate,
+    };
+  }, [calendarEvents]);
+
+  // Count only parent sports (exclude sub-categories) that are active
+  const activeSportsCount = sports.filter((s: any) => !s.parentId && s.active !== false).length;
   
   return (
     <section className="relative min-h-[600px] flex items-center overflow-hidden">
@@ -49,18 +103,39 @@ export const Hero = () => {
           <div className="grid grid-cols-3 gap-4 max-w-lg">
             <div className="bg-card/50 backdrop-blur p-4 rounded-lg border border-border animate-slide-in">
               <Trophy className="h-8 w-8 text-primary mb-2" />
-              <div className="text-2xl font-bold">8</div>
+              <div className="text-2xl font-bold">{activeSportsCount}</div>
               <div className="text-xs text-muted-foreground">Sports</div>
             </div>
             <div className="bg-card/50 backdrop-blur p-4 rounded-lg border border-border animate-slide-in" style={{ animationDelay: "0.1s" }}>
               <Users className="h-8 w-8 text-secondary mb-2" />
-              <div className="text-2xl font-bold">6</div>
+              <div className="text-2xl font-bold">{communities.length}</div>
               <div className="text-xs text-muted-foreground">Communities</div>
             </div>
             <div className="bg-card/50 backdrop-blur p-4 rounded-lg border border-border animate-slide-in" style={{ animationDelay: "0.2s" }}>
               <Calendar className="h-8 w-8 text-accent mb-2" />
-              <div className="text-2xl font-bold">4</div>
-              <div className="text-xs text-muted-foreground">Days</div>
+              {startDate ? (
+                <>
+                  <div className="text-lg font-bold">
+                    {startDate.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {daysUntilEvent !== null && daysUntilEvent > 0
+                      ? `${daysUntilEvent} Days Until Start`
+                      : daysUntilEvent === 0
+                      ? "Starts Today"
+                      : "Event Date"}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">-</div>
+                  <div className="text-xs text-muted-foreground">Days Until Start</div>
+                </>
+              )}
             </div>
           </div>
         </div>

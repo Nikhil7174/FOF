@@ -2,46 +2,44 @@ import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Link } from "react-router-dom";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { LogIn, Loader2 } from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
+import { api } from "@/api";
 import { useAuth } from "@/hooks/api/useAuth";
-import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 
-export default function Login() {
+export default function VolunteerLogin() {
   const { toast } = useToast();
-  const { login } = useAuth();
   const navigate = useNavigate();
+  const { refreshUser } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    const username = String(form.get("username") || "");
-    const password = String(form.get("password") || "");
+    if (!email || !password) {
+      toast({ title: "Error", description: "Please enter email and password", variant: "destructive" });
+      return;
+    }
     
     setIsSubmitting(true);
     
     try {
-      // demo users: admin/admin, nairobi/community, volunteer/volunteer
-      const user = await login(username, password);
-      toast({ title: "Login Successful", description: "Welcome back to FOF 2026!" });
+      // Login using email and password
+      const loggedInUser = await api.volunteerLogin(email, password);
+      
+      // Refresh the auth state so ProtectedRoute components see the updated user
+      await refreshUser();
       
       // Wait a moment for the auth state to update before navigating
-      // This ensures ProtectedRoute components see the updated user state
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Use the user object returned from login
-      const role = user.role;
-      if (role === "admin") navigate("/admin");
-      else if (role === "community_admin") navigate("/community");
-      else if (role === "sports_admin") navigate("/sports-admin");
-      else if (role === "volunteer_admin") navigate("/volunteer-admin");
-      else navigate("/");
+      toast({ title: "Login Successful", description: "Welcome back!" });
+      navigate("/dashboard");
     } catch (err: any) {
-      // Extract error message from various possible error formats
       let errorMessage = "Invalid credentials. Please try again.";
       
       if (err?.message) {
@@ -69,36 +67,39 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
       <div className="container mx-auto px-4 py-12 flex items-center justify-center min-h-[calc(100vh-4rem)]">
         <Card className="w-full max-w-md shadow-card animate-fade-in">
           <CardHeader className="text-center">
             <div className="inline-flex items-center justify-center p-3 bg-gradient-hero rounded-full mb-4 mx-auto">
               <LogIn className="h-8 w-8 text-primary-foreground" />
             </div>
-            <CardTitle className="text-2xl">Login</CardTitle>
-            <CardDescription>Participant, Volunteer or Admin</CardDescription>
+            <CardTitle className="text-2xl">Volunteer Login</CardTitle>
+            <CardDescription>Enter your email and password to login</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username">Username or Email</Label>
+                <Label htmlFor="email">Email *</Label>
                 <Input 
-                  id="username" 
-                  name="username" 
-                  type="text" 
-                  placeholder="e.g., admin or user@example.com" 
+                  id="email" 
+                  name="email" 
+                  type="email" 
+                  placeholder="Enter your email" 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
                   required 
                   disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">Password *</Label>
                 <Input 
                   id="password" 
                   name="password" 
                   type="password" 
                   placeholder="Enter your password" 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
                   required 
                   disabled={isSubmitting}
                 />
@@ -118,33 +119,15 @@ export default function Login() {
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="flex flex-col gap-3">
-            <div className="text-sm text-center text-muted-foreground">
-              Don't have an account?{" "}
-              <Link to="/register" className="text-primary hover:underline font-medium">
-                Register as Participant
-              </Link>
-            </div>
-            <div className="flex flex-col gap-2 text-sm text-center">
-              <Link to="/sports-admin-login" className="text-primary hover:underline font-medium">
-                Sports Admin Login
-              </Link>
-              <Link to="/community-admin-login" className="text-primary hover:underline font-medium">
-                Community Admin Login
-              </Link>
-              <Link to="/volunteer-admin-login" className="text-primary hover:underline font-medium">
-                Volunteer Admin Login
-              </Link>
-              <Link to="/volunteer-login" className="text-primary hover:underline font-medium">
-                Volunteer Login
-              </Link>
-              <Link to="/volunteer" className="text-secondary hover:underline font-medium">
-                Volunteer Sign-Up
-              </Link>
-            </div>
-          </CardFooter>
+          <div className="px-6 pb-6 text-center text-sm text-muted-foreground">
+            Don't have an account?{" "}
+            <Link to="/volunteer" className="text-primary hover:underline font-medium">
+              Sign up as Volunteer
+            </Link>
+          </div>
         </Card>
       </div>
     </div>
   );
 }
+

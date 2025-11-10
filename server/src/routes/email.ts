@@ -19,6 +19,57 @@ const contactEmailSchema = z.object({
   message: z.string().min(1),
 });
 
+// Public registration confirmation endpoint (no authentication required)
+router.post("/registration-confirmation", async (req, res: Response) => {
+  try {
+    const emailSchema = z.object({
+      to: z.string().email(),
+    });
+    
+    const data = emailSchema.parse(req.body);
+    
+    const emailBody = `
+Dear Participant,
+
+Thank you for registering for the Festival of Friendship (FOF) 2026!
+
+Your registration has been received and is currently pending approval. You will receive another email once your registration has been reviewed and approved by our team.
+
+If you have any questions, please don't hesitate to contact us.
+
+Best regards,
+FOF 2026 Team
+    `.trim();
+
+    // Actually send the email
+    await sendEmail({
+      to: data.to,
+      subject: "FOF 2026 - Registration Received",
+      body: emailBody,
+      from: process.env.REGISTRATION_EMAIL || process.env.SMTP_USER || "registration@fof.co.ke",
+    });
+
+    // Store in database for record keeping
+    await prisma.email.create({
+      data: {
+        to: data.to,
+        from: process.env.REGISTRATION_EMAIL || process.env.SMTP_USER || "registration@fof.co.ke",
+        subject: "FOF 2026 - Registration Received",
+        body: emailBody,
+      },
+    });
+
+    res.json({ success: true, message: "Confirmation email sent successfully" });
+  } catch (error: any) {
+    if (error.name === "ZodError") {
+      return res.status(400).json({ error: "Invalid input", details: error.errors });
+    }
+    console.error("Registration confirmation email error:", error);
+    // Don't fail hard - just log and return success since email is not critical
+    res.json({ success: true, message: "Registration successful, but email could not be sent" });
+  }
+});
+
 // Public contact endpoint (no authentication required)
 router.post("/contact", async (req, res: Response) => {
   try {

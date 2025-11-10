@@ -625,6 +625,47 @@ async function main() {
     });
   }
 
+  // Create user and volunteer for nikhilkumarsingh7174@gmail.com
+  const nikhilPassword = await hashPassword("password123");
+  const nikhilUsername = "nikhilkumar_" + Date.now().toString().slice(-6);
+  
+  await prisma.user.upsert({
+    where: { email: "nikhilkumarsingh7174@gmail.com" },
+    update: {
+      username: nikhilUsername,
+      password: nikhilPassword,
+      role: Role.volunteer,
+    },
+    create: {
+      username: nikhilUsername,
+      email: "nikhilkumarsingh7174@gmail.com",
+      password: nikhilPassword,
+      role: Role.volunteer,
+    },
+  });
+
+  await prisma.volunteer.upsert({
+    where: { email: "nikhilkumarsingh7174@gmail.com" },
+    update: {
+      firstName: "Nikhil",
+      middleName: undefined,
+      lastName: "Singh",
+      gender: Gender.male,
+      dob: new Date("1995-01-01"),
+      phone: "+254 700 000 000",
+      sportId: "1",
+    },
+    create: {
+      firstName: "Nikhil",
+      lastName: "Singh",
+      gender: Gender.male,
+      dob: new Date("1995-01-01"),
+      email: "nikhilkumarsingh7174@gmail.com",
+      phone: "+254 700 000 000",
+      sportId: "1", // Assigned to Football
+    },
+  });
+
   // Create calendar items
   await prisma.calendarItem.upsert({
     where: { id: "e1" },

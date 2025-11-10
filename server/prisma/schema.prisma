@@ -107,12 +107,12 @@ model Volunteer {
   dob          DateTime
   email        String    @unique
   phone        String
-  departmentId String
+  departmentId String?
   sportId      String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  department Department @relation(fields: [departmentId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
   sport      Sport?     @relation(fields: [sportId], references: [id])
 
   @@index([email])

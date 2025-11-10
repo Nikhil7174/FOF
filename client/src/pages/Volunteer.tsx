@@ -7,21 +7,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { api } from "@/api";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Heart } from "lucide-react";
+import { Heart, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Volunteer() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [gender, setGender] = useState<string>("");
-  const [departmentId, setDepartmentId] = useState<string>("");
-
-  const { data: departments = [], isLoading: isLoadingDepartments } = useQuery({
-    queryKey: ["departments"],
-    queryFn: () => api.listDepartments(),
-  });
+  const [password, setPassword] = useState<string>("");
+  const [confirmPassword, setConfirmPassword] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -29,11 +25,31 @@ export default function Volunteer() {
     const firstName = String(form.get("firstName") || "");
     const lastName = String(form.get("lastName") || "");
     const email = String(form.get("email") || "");
-    const username = String(form.get("username") || "");
-    const password = String(form.get("password") || "");
+
+    // Validate password
+    if (!password || password.length < 6) {
+      toast({ 
+        title: "Password Required", 
+        description: "Password must be at least 6 characters long.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    // Validate password confirmation
+    if (password !== confirmPassword) {
+      toast({ 
+        title: "Password Mismatch", 
+        description: "Passwords do not match. Please try again.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
-      // Create volunteer entry
+      // Create volunteer entry with password
       await api.createVolunteer({
         firstName,
         middleName: String(form.get("middleName") || ""),
@@ -42,19 +58,58 @@ export default function Volunteer() {
         dob: String(form.get("dob") || ""),
         email,
         phone: String(form.get("phone") || ""),
-        departmentId,
+        password,
       });
 
-      // Create user account
-      await api.signup("volunteer", username, password);
+      // Try to send confirmation email, but don't fail if it doesn't work
+      try {
+        await api.sendEmail(email, "Thank You for Volunteering", "We'll contact you soon with more details.");
+      } catch (emailError) {
+        console.log("Could not send confirmation email:", emailError);
+      }
 
-      // Send email
-      await api.sendEmail(email, "Thank You for Volunteering", "We'll contact you soon with more details.");
+      toast({ 
+        title: "🎉 Registration Successful!", 
+        description: "Your volunteer account has been created! You can now login with your email and password.",
+        duration: 5000,
+      });
 
-      toast({ title: "Thank You for Volunteering!", description: "We'll contact you soon with more details." });
-      navigate("/thank-you");
+      // Wait a moment to show the success message, then redirect to volunteer login
+      setTimeout(() => {
+        navigate("/volunteer-login");
+      }, 2000);
     } catch (err: any) {
-      toast({ title: "Signup failed", description: err?.message || "Please try again.", variant: "destructive" });
+      let errorMessage = "Something went wrong. Please try again.";
+      
+      if (err?.details && Array.isArray(err.details) && err.details.length > 0) {
+        const validationErrors = err.details.map((detail: any) => {
+          const path = detail.path?.join(".") || "field";
+          return `${path}: ${detail.message}`;
+        });
+        errorMessage = validationErrors.join(". ");
+      } else if (err?.message) {
+        errorMessage = err.message;
+      } else if (err?.originalError?.error) {
+        errorMessage = err.originalError.error;
+      } else if (err?.originalError?.message) {
+        errorMessage = err.originalError.message;
+      } else if (err?.error) {
+        errorMessage = err.error;
+      } else if (typeof err === "string") {
+        errorMessage = err;
+      } else if (err?.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      } else if (err?.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      }
+
+      toast({ 
+        title: "Registration Failed", 
+        description: errorMessage, 
+        variant: "destructive",
+        duration: 5000,
+      });
+      setIsSubmitting(false);
     }
   };
 
@@ -84,22 +139,39 @@ export default function Volunteer() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">First Name *</Label>
-                    <Input id="firstName" name="firstName" placeholder="e.g., Sarah" required />
+                    <Input 
+                      id="firstName" 
+                      name="firstName" 
+                      placeholder="e.g., Sarah" 
+                      required 
+                      disabled={isSubmitting}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="middleName">Middle Name</Label>
-                    <Input id="middleName" name="middleName" placeholder="e.g., W." />
+                    <Input 
+                      id="middleName" 
+                      name="middleName" 
+                      placeholder="e.g., W." 
+                      disabled={isSubmitting}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="lastName">Last Name *</Label>
-                    <Input id="lastName" name="lastName" placeholder="e.g., Njeri" required />
+                    <Input 
+                      id="lastName" 
+                      name="lastName" 
+                      placeholder="e.g., Njeri" 
+                      required 
+                      disabled={isSubmitting}
+                    />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="gender">Gender *</Label>
-                    <Select required onValueChange={setGender}>
+                    <Select required onValueChange={setGender} disabled={isSubmitting}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select gender" />
                       </SelectTrigger>
@@ -111,57 +183,83 @@ export default function Volunteer() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="dob">Date of Birth *</Label>
-                    <Input id="dob" name="dob" type="date" placeholder="YYYY-MM-DD" required />
+                    <Input 
+                      id="dob" 
+                      name="dob" 
+                      type="date" 
+                      placeholder="YYYY-MM-DD" 
+                      required 
+                      disabled={isSubmitting}
+                    />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email Address *</Label>
-                    <Input id="email" name="email" type="email" placeholder="e.g., sarah@example.com" required />
+                    <Input 
+                      id="email" 
+                      name="email" 
+                      type="email" 
+                      placeholder="e.g., sarah@example.com" 
+                      required 
+                      disabled={isSubmitting}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number *</Label>
-                    <Input id="phone" name="phone" type="tel" placeholder="e.g., +254 723 456 789" required />
+                    <Input 
+                      id="phone" 
+                      name="phone" 
+                      type="tel" 
+                      placeholder="e.g., +254 723 456 789" 
+                      required 
+                      disabled={isSubmitting}
+                    />
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="department">Preferred Department *</Label>
-                  {isLoadingDepartments ? (
-                    <Skeleton className="h-10" />
-                  ) : (
-                    <Select required onValueChange={setDepartmentId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {departments.map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id}>
-                            {dept.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
                 </div>
 
                 <div className="pt-4 border-t">
                   <h3 className="text-lg font-semibold mb-4">Login Credentials</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="username">Username *</Label>
-                      <Input id="username" name="username" placeholder="Choose a username" required />
+                      <Label htmlFor="password">Password *</Label>
+                      <Input 
+                        id="password" 
+                        name="password" 
+                        type="password" 
+                        placeholder="Create a password (min 6 characters)" 
+                        required 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={isSubmitting}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="password">Password *</Label>
-                      <Input id="password" name="password" type="password" placeholder="Create a password" required />
+                      <Label htmlFor="confirmPassword">Confirm Password *</Label>
+                      <Input 
+                        id="confirmPassword" 
+                        name="confirmPassword" 
+                        type="password" 
+                        placeholder="Confirm your password" 
+                        required 
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        disabled={isSubmitting}
+                      />
                     </div>
                   </div>
                 </div>
 
-                <Button type="submit" size="lg" variant="hero" className="w-full">
-                  Submit Application
+                <Button type="submit" size="lg" variant="hero" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    "Submit Application"
+                  )}
                 </Button>
               </form>
             </CardContent>

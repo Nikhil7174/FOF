@@ -33,7 +33,7 @@ const Index = () => {
     },
     {
       title: "Volunteer",
-      description: "Join our team of volunteers",
+      description: "Join our team of volunteers for FOF 2026",
       icon: Heart,
       link: "/volunteer",
       color: "text-destructive",

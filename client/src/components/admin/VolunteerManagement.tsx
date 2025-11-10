@@ -43,7 +43,6 @@ export function VolunteerManagement() {
     },
     retry: 2, // Add retry logic
   });
-  const { data: departments = [], isLoading: isLoadingDepartments } = useQuery({ queryKey: ["departments"], queryFn: api.listDepartments });
 
   // Debug: Log volunteers to console
   useEffect(() => {
@@ -268,13 +267,12 @@ export function VolunteerManagement() {
                   <TableHead>DOB</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Department</TableHead>
                   <TableHead>Sport</TableHead>
                   <TableHead>Registered</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoadingVolunteers || isLoadingSports || isLoadingDepartments ? (
+                {isLoadingVolunteers || isLoadingSports ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
@@ -283,13 +281,12 @@ export function VolunteerManagement() {
                       <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                     </TableRow>
                   ))
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground">No volunteers found.</TableCell>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground">No volunteers found.</TableCell>
                   </TableRow>
                 ) : (
                   filtered.map((v) => {
@@ -304,7 +301,6 @@ export function VolunteerManagement() {
                       return sport.name;
                     };
                     const sportName = getSportName(v.sportId);
-                    const departmentName = departments.find((d: any) => d.id === v.departmentId)?.name || v.departmentId;
                     return (
                       <TableRow key={v.id}>
                         <TableCell className="font-medium">{`${v.firstName} ${v.middleName ? v.middleName + " " : ""}${v.lastName}`}</TableCell>
@@ -312,7 +308,6 @@ export function VolunteerManagement() {
                         <TableCell>{v.dob}</TableCell>
                         <TableCell>{v.email}</TableCell>
                         <TableCell>{v.phone}</TableCell>
-                        <TableCell>{departmentName}</TableCell>
                         <TableCell>{sportName}</TableCell>
                         <TableCell>{new Date(v.createdAt).toLocaleString()}</TableCell>
                       </TableRow>

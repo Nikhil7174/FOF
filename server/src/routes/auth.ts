@@ -33,6 +33,11 @@ const communityAdminLoginSchema = z.object({
   communityId: z.string().min(1),
 });
 
+const volunteerLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
 // Login
 router.post("/login", async (req: Request, res: Response) => {
   try {
@@ -293,15 +298,24 @@ router.post("/community-admin/login", async (req: Request, res: Response) => {
     }
 
     // Find or create a User record for this community admin
+    // First, try to find by email (in case user exists but communityId is wrong)
     let user = await prisma.user.findFirst({
       where: {
+        email: community.adminEmail,
         role: "community_admin",
-        communityId: community.id,
       },
     });
 
-    if (!user) {
-      // Create a user record for this community admin
+    if (user) {
+      // Update communityId if it doesn't match (in case it was changed or set incorrectly)
+      if (user.communityId !== community.id) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { communityId: community.id },
+        });
+      }
+    } else {
+      // Create a new user record for this community admin
       const hashedPassword = await hashPassword(password);
       user = await prisma.user.create({
         data: {
@@ -335,6 +349,74 @@ router.post("/community-admin/login", async (req: Request, res: Response) => {
         id: community.id,
         name: community.name,
       },
+    });
+  } catch (error: any) {
+    if (error.name === "ZodError") {
+      return res.status(400).json({ error: "Invalid input", details: error.errors });
+    }
+    res.status(500).json({ error: error.message || "Login failed" });
+  }
+});
+
+// Volunteer Login (using email and password from User table)
+router.post("/volunteer/login", async (req: Request, res: Response) => {
+  try {
+    const { email, password } = volunteerLoginSchema.parse(req.body);
+
+    // Find user by email with volunteer role
+    const user = await prisma.user.findFirst({
+      where: {
+        email,
+        role: "volunteer",
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // Compare password
+    const isValid = await comparePassword(password, user.password);
+    if (!isValid) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // Find volunteer record
+    const volunteer = await prisma.volunteer.findUnique({
+      where: { email },
+      include: {
+        sport: true,
+      },
+    });
+
+    // Generate token
+    const token = generateToken({
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+    });
+
+    res.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        sportId: user.sportId,
+        communityId: user.communityId,
+      },
+      token,
+      volunteer: volunteer
+        ? {
+            id: volunteer.id,
+            firstName: volunteer.firstName,
+            middleName: volunteer.middleName,
+            lastName: volunteer.lastName,
+            email: volunteer.email,
+            sportId: volunteer.sportId,
+            sport: volunteer.sport,
+          }
+        : null,
     });
   } catch (error: any) {
     if (error.name === "ZodError") {

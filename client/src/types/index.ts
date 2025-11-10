@@ -45,8 +45,8 @@ export interface VolunteerEntry {
   dob: string;
   email: string;
   phone: string;
-  departmentId: string;
   sportId?: string;
+  sport?: SportRecord | null;
   createdAt: string;
 }
 

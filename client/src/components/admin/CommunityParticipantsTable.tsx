@@ -27,6 +27,21 @@ export function CommunityParticipantsTable() {
 
   // Backend already filters by community for community_admin, so use participants directly
   const communityParticipants = participants;
+  
+  // Debug logging to help troubleshoot
+  if (user?.role === "community_admin") {
+    console.log("[CommunityParticipantsTable] Debug:", {
+      userCommunityId: user.communityId,
+      totalParticipants: participants.length,
+      participants: participants.map((p: any) => ({
+        id: p.id,
+        email: p.email,
+        name: `${p.firstName} ${p.lastName}`,
+        communityId: p.communityId,
+        status: p.status,
+      })),
+    });
+  }
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: "accepted" | "rejected" }) =>
@@ -56,8 +71,26 @@ export function CommunityParticipantsTable() {
     deleteMutation.mutate(id);
   };
 
-  const getSportsForParticipant = (sportIds: string[]) => {
-    return sportIds
+  const getSportsForParticipant = (participantSports: any[]) => {
+    // Handle both formats: array of IDs or array of ParticipantSport objects
+    if (!participantSports || participantSports.length === 0) return [];
+    
+    // Check if it's an array of objects with sport property (from API)
+    if (participantSports[0]?.sport) {
+      return participantSports.map((ps: any) => {
+        const sport = ps.sport;
+        if (!sport) return null;
+        // If it's a child sport, show parent - child format
+        if (sport.parentId) {
+          const parent = sports.find((s: any) => s.id === sport.parentId);
+          return parent ? `${parent.name} - ${sport.name}` : sport.name;
+        }
+        return sport.name;
+      }).filter(Boolean);
+    }
+    
+    // Otherwise, treat as array of sport IDs
+    return participantSports
       .map((id) => {
         const sport = sports.find((s: any) => s.id === id);
         if (!sport) return null;

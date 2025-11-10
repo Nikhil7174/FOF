@@ -13,8 +13,8 @@ const createCalendarItemSchema = z.object({
   type: z.string().min(1),
 });
 
-// List calendar items
-router.get("/", authenticate, async (req: AuthRequest, res: Response) => {
+// List calendar items (public endpoint for home page)
+router.get("/", async (req, res: Response) => {
   try {
     const calendarItems = await prisma.calendarItem.findMany({
       include: {

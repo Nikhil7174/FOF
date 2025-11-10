@@ -9,11 +9,13 @@ import { LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api";
+import { useAuth } from "@/hooks/api/useAuth";
 import React, { useState } from "react";
 
 export default function SportsAdminLogin() {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { refreshUser } = useAuth();
   const [selectedSportId, setSelectedSportId] = useState<string>("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,6 +38,12 @@ export default function SportsAdminLogin() {
     try {
       // Login using the sport's adminEmail and adminPassword
       const loggedInUser = await api.sportsAdminLogin(email, password, selectedSportId);
+      
+      // Refresh the auth state so ProtectedRoute components see the updated user
+      await refreshUser();
+      
+      // Wait a moment for the auth state to update before navigating
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       toast({ title: "Login Successful", description: "Welcome back!" });
       navigate("/sports-admin");

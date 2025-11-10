@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, useRef } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { api } from "@/api";
 
 export interface AuthUser {
@@ -14,6 +14,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (username: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -35,19 +36,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const loginFn = useCallback(async (username: string, password: string) => {
+    const u = await api.login(username, password);
+    setUser(u as AuthUser);
+    return u as AuthUser;
+  }, []);
+
+  const logoutFn = useCallback(async () => {
+    await api.logout();
+    setUser(null);
+  }, []);
+
+  const refreshUserFn = useCallback(async () => {
+    const u = await api.me();
+    setUser(u as AuthUser | null);
+  }, []);
+
   const value = useMemo<AuthContextValue>(() => ({
     user,
     loading,
-    async login(username: string, password: string) {
-      const u = await api.login(username, password);
-      setUser(u as AuthUser);
-      return u as AuthUser;
-    },
-    async logout() {
-      await api.logout();
-      setUser(null);
-    },
-  }), [user, loading]);
+    login: loginFn,
+    logout: logoutFn,
+    refreshUser: refreshUserFn,
+  }), [user, loading, loginFn, logoutFn, refreshUserFn]);
 
   return (
     <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
@@ -66,6 +77,7 @@ export function useAuth() {
         throw new Error("AuthProvider not initialized");
       },
       logout: async () => {},
+      refreshUser: async () => {},
     };
   }
   return ctx;

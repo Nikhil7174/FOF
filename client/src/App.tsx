@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import SportsAdminLogin from "./pages/SportsAdminLogin";
 import CommunityAdminLogin from "./pages/CommunityAdminLogin";
 import VolunteerAdminLogin from "./pages/VolunteerAdminLogin";
+import VolunteerLogin from "./pages/VolunteerLogin";
 import Volunteer from "./pages/Volunteer";
 import Calendar from "./pages/Calendar";
 import Sports from "./pages/Sports";
@@ -29,7 +30,16 @@ import { Analytics } from '@vercel/analytics/react';
 // Minimal protected route gate by role
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role: "admin" | "community_admin" | "sports_admin" | "volunteer_admin" }) {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
   if (!user || user.role !== role) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
@@ -37,7 +47,16 @@ function ProtectedRoute({ children, role }: { children: React.ReactNode; role: "
 // Protected route for authenticated users (any role)
 function AuthProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
@@ -45,7 +64,17 @@ function AuthProtectedRoute({ children }: { children: React.ReactNode }) {
 // Guest route - redirects logged-in users to their dashboard
 function GuestRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) {
+    // Show a loading state instead of returning null
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
   if (user) {
     // Redirect to appropriate dashboard based on role
     if (user.role === "admin") return <Navigate to="/admin" replace />;
@@ -77,6 +106,7 @@ const App = () => (
             <Route path="/sports-admin-login" element={<GuestRoute><SportsAdminLogin /></GuestRoute>} />
             <Route path="/community-admin-login" element={<GuestRoute><CommunityAdminLogin /></GuestRoute>} />
             <Route path="/volunteer-admin-login" element={<GuestRoute><VolunteerAdminLogin /></GuestRoute>} />
+            <Route path="/volunteer-login" element={<GuestRoute><VolunteerLogin /></GuestRoute>} />
             <Route path="/volunteer" element={<Volunteer />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/sports" element={<Sports />} />

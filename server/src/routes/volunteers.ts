@@ -2,7 +2,8 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../index";
 import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
-import { Gender } from "@prisma/client";
+import { Gender, Role } from "@prisma/client";
+import { hashPassword } from "../utils/password";
 
 const router = Router();
 
@@ -14,8 +15,33 @@ const createVolunteerSchema = z.object({
   dob: z.string().or(z.date()),
   email: z.string().email(),
   phone: z.string().min(1),
-  departmentId: z.string().uuid(),
+  password: z.string().min(6, "Password must be at least 6 characters"),
   sportId: z.string().optional(),
+});
+
+// Get my volunteer (for volunteers)
+router.get("/me", authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { email: true },
+    });
+
+    if (!user || !user.email) {
+      return res.json(null);
+    }
+
+    const volunteer = await prisma.volunteer.findUnique({
+      where: { email: user.email },
+      include: {
+        sport: true,
+      },
+    });
+
+    res.json(volunteer);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to get volunteer" });
+  }
 });
 
 // List volunteers
@@ -31,7 +57,6 @@ router.get("/", authenticate, async (req: AuthRequest, res: Response) => {
     const volunteers = await prisma.volunteer.findMany({
       where,
       include: {
-        department: true,
         sport: true,
       },
       orderBy: { createdAt: "desc" },
@@ -48,18 +73,44 @@ router.post("/", async (req: AuthRequest, res: Response) => {
   try {
     const data = createVolunteerSchema.parse(req.body);
 
-    // Check if email already exists
-    const existing = await prisma.volunteer.findUnique({
+    // Check if email already exists in Volunteer table
+    const existingVolunteer = await prisma.volunteer.findUnique({
       where: { email: data.email },
     });
 
-    if (existing) {
+    if (existingVolunteer) {
       return res.status(409).json({ error: "Volunteer with this email already exists" });
+    }
+
+    // Check if email already exists in User table
+    const existingUser = await prisma.user.findUnique({
+      where: { email: data.email },
+    });
+
+    if (existingUser) {
+      return res.status(409).json({ error: "An account with this email already exists" });
     }
 
     // Parse date
     const dob = typeof data.dob === "string" ? new Date(data.dob) : data.dob;
 
+    // Hash password
+    const hashedPassword = await hashPassword(data.password);
+
+    // Generate username from email (before @ symbol)
+    const username = data.email.split("@")[0] + "_" + Date.now().toString().slice(-6);
+
+    // Create user account first
+    const user = await prisma.user.create({
+      data: {
+        username,
+        email: data.email,
+        password: hashedPassword,
+        role: Role.volunteer,
+      },
+    });
+
+    // Create volunteer
     const volunteer = await prisma.volunteer.create({
       data: {
         firstName: data.firstName,
@@ -69,11 +120,9 @@ router.post("/", async (req: AuthRequest, res: Response) => {
         dob,
         email: data.email,
         phone: data.phone,
-        departmentId: data.departmentId,
         sportId: data.sportId,
       },
       include: {
-        department: true,
         sport: true,
       },
     });
@@ -82,6 +131,19 @@ router.post("/", async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     if (error.name === "ZodError") {
       return res.status(400).json({ error: "Invalid input", details: error.errors });
+    }
+    // If user creation succeeded but volunteer creation failed, clean up user
+    if (error.code === "P2002") {
+      const email = req.body?.email;
+      if (email) {
+        try {
+          await prisma.user.deleteMany({
+            where: { email },
+          });
+        } catch (cleanupError) {
+          // Ignore cleanup errors
+        }
+      }
     }
     res.status(500).json({ error: error.message || "Failed to create volunteer" });
   }
@@ -102,7 +164,6 @@ router.patch("/:id", authenticate, requireRole("admin", "volunteer_admin"), asyn
       where: { id },
       data: updateData as any,
       include: {
-        department: true,
         sport: true,
       },
     });
