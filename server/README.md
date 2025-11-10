@@ -50,7 +50,7 @@ DATABASE_URL="postgresql://user:password@host:5432/dbname"
 JWT_SECRET="your-secret-key-change-in-production"
 PORT=3000
 NODE_ENV="development"
-FRONTEND_URL="http://localhost:5173"
+FRONTEND_URL="https://fof-iota.vercel.app"
 ```
 
 **Important:** Change `JWT_SECRET` to a strong random string in production!
@@ -79,7 +79,7 @@ npm run build
 npm start
 ```
 
-The server will start on `http://localhost:3000` (or the port specified in `.env`).
+The server is deployed at `https://fof-3m3x.onrender.com` (or the port specified in `.env`).
 
 ## API Endpoints
 

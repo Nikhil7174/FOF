@@ -37,7 +37,7 @@ DATABASE_URL="postgresql://user:password@host:5432/dbname"
 JWT_SECRET="your-secret-key-change-in-production"
 PORT=3000
 NODE_ENV="development"
-FRONTEND_URL="http://localhost:5173"
+FRONTEND_URL="https://fof-iota.vercel.app"
 ```
 
 5. Set up database:
@@ -52,7 +52,7 @@ npm run prisma:seed
 npm run dev
 ```
 
-The backend will run on `http://localhost:3000`
+The backend is deployed at `https://fof-3m3x.onrender.com`
 
 ### Frontend Setup
 
@@ -68,7 +68,7 @@ npm install
 
 3. Create `.env` file in `client/` directory (optional):
 ```env
-VITE_API_URL=http://localhost:3000/api
+VITE_API_URL=https://fof-3m3x.onrender.com/api
 ```
 
 4. Start the development server:
@@ -76,7 +76,7 @@ VITE_API_URL=http://localhost:3000/api
 npm run dev
 ```
 
-The frontend will run on `http://localhost:5173` (or port 8080 as configured)
+The frontend is deployed at `https://fof-iota.vercel.app`
 
 ## Default Login Credentials
 
