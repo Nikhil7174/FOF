@@ -170,11 +170,27 @@ model Sport {
   calendarItems CalendarItem[]
   convenor      Convenor?           @relation(fields: [convenorId], references: [id])
   leaderboardEntries LeaderboardEntry[]
+  incompatibleWith SportIncompatibility[] @relation("SportIncompatible")
+  incompatibleSports SportIncompatibility[] @relation("IncompatibleWith")
 
   @@index([parentId])
   @@index([name])
   @@index([convenorId])
   @@index([adminEmail])
+}
+
+model SportIncompatibility {
+  id            String   @id @default(uuid())
+  sportId       String
+  incompatibleSportId String
+  createdAt     DateTime @default(now())
+
+  sport             Sport @relation("SportIncompatible", fields: [sportId], references: [id], onDelete: Cascade)
+  incompatibleSport Sport @relation("IncompatibleWith", fields: [incompatibleSportId], references: [id], onDelete: Cascade)
+
+  @@unique([sportId, incompatibleSportId])
+  @@index([sportId])
+  @@index([incompatibleSportId])
 }
 
 model Department {

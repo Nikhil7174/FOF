@@ -6,9 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Loader2 } from "lucide-react";
+import { UserPlus, Loader2, ChevronDown } from "lucide-react";
 import { api } from "@/api";
 import { useNavigate } from "react-router-dom";
 
@@ -21,7 +21,39 @@ export default function Register() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [password, setPassword] = useState<string>("");
   const [confirmPassword, setConfirmPassword] = useState<string>("");
+  const [isSportsSectionOpen, setIsSportsSectionOpen] = useState(false);
+  const [firstName, setFirstName] = useState<string>("");
+  const [lastName, setLastName] = useState<string>("");
+  const [dob, setDob] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
+  const [phone, setPhone] = useState<string>("");
+  const [kinFirstName, setKinFirstName] = useState<string>("");
+  const [kinLastName, setKinLastName] = useState<string>("");
+  const [kinPhone, setKinPhone] = useState<string>("");
   const navigate = useNavigate();
+
+  // Auto-open sports section when all required fields are filled
+  useEffect(() => {
+    // Check if all required fields are filled
+    const allFieldsFilled = 
+      firstName.trim() &&
+      lastName.trim() &&
+      gender &&
+      dob.trim() &&
+      email.trim() &&
+      phone.trim() &&
+      password &&
+      confirmPassword &&
+      communityId &&
+      kinFirstName.trim() &&
+      kinLastName.trim() &&
+      kinPhone.trim();
+
+    // Auto-open sports section if all fields are filled and it's currently closed
+    if (allFieldsFilled && !isSportsSectionOpen) {
+      setIsSportsSectionOpen(true);
+    }
+  }, [firstName, lastName, gender, dob, email, phone, password, confirmPassword, communityId, kinFirstName, kinLastName, kinPhone, isSportsSectionOpen]);
 
   const { data: communities = [] } = useQuery({
     queryKey: ["communities"],
@@ -161,9 +193,49 @@ export default function Register() {
   };
 
   const toggleSport = (sportId: string) => {
-    setSelectedSports((prev) =>
-      prev.includes(sportId) ? prev.filter((id) => id !== sportId) : [...prev, sportId]
-    );
+    const sport = sports.find((s) => s.id === sportId);
+    if (!sport) return;
+
+    // If deselecting, just remove it
+    if (selectedSports.includes(sportId)) {
+      setSelectedSports((prev) => prev.filter((id) => id !== sportId));
+      return;
+    }
+
+    // Check for incompatible sports before adding
+    const incompatibleIds = (sport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
+    const hasIncompatible = selectedSports.some((selectedId) => incompatibleIds.includes(selectedId));
+    
+    if (hasIncompatible) {
+      const incompatibleSport = sports.find((s) => 
+        selectedSports.includes(s.id) && incompatibleIds.includes(s.id)
+      );
+      toast({ 
+        title: "Incompatible Sports", 
+        description: `Cannot select ${sport.name} with ${incompatibleSport?.name || 'the selected sport(s)'}. These sports are incompatible.`, 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    // Also check if any already selected sport is incompatible with this one
+    for (const selectedId of selectedSports) {
+      const selectedSport = sports.find((s) => s.id === selectedId);
+      if (selectedSport) {
+        const selectedIncompatibleIds = (selectedSport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
+        if (selectedIncompatibleIds.includes(sportId)) {
+          toast({ 
+            title: "Incompatible Sports", 
+            description: `Cannot select ${sport.name} with ${selectedSport.name}. These sports are incompatible.`, 
+            variant: "destructive" 
+          });
+          return;
+        }
+      }
+    }
+
+    // If no conflicts, add the sport
+    setSelectedSports((prev) => [...prev, sportId]);
   };
 
   return (
@@ -191,7 +263,7 @@ export default function Register() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">First Name *</Label>
-                    <Input id="firstName" name="firstName" placeholder="e.g., Ahmed" required disabled={isSubmitting} />
+                    <Input id="firstName" name="firstName" placeholder="e.g., Ahmed" required disabled={isSubmitting} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="middleName">Middle Name</Label>
@@ -199,7 +271,7 @@ export default function Register() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="lastName">Last Name *</Label>
-                    <Input id="lastName" name="lastName" placeholder="e.g., Hassan" required disabled={isSubmitting} />
+                    <Input id="lastName" name="lastName" placeholder="e.g., Hassan" required disabled={isSubmitting} value={lastName} onChange={(e) => setLastName(e.target.value)} />
                   </div>
                 </div>
 
@@ -218,18 +290,18 @@ export default function Register() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="dob">Date of Birth *</Label>
-                    <Input id="dob" name="dob" type="date" placeholder="YYYY-MM-DD" required disabled={isSubmitting} />
+                    <Input id="dob" name="dob" type="date" placeholder="YYYY-MM-DD" required disabled={isSubmitting} value={dob} onChange={(e) => setDob(e.target.value)} />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email Address *</Label>
-                    <Input id="email" name="email" type="email" placeholder="e.g., ahmed@example.com" required disabled={isSubmitting} />
+                    <Input id="email" name="email" type="email" placeholder="e.g., ahmed@example.com" required disabled={isSubmitting} value={email} onChange={(e) => setEmail(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number *</Label>
-                    <Input id="phone" name="phone" type="tel" placeholder="e.g., +254 712 345 678" required disabled={isSubmitting} />
+                    <Input id="phone" name="phone" type="tel" placeholder="e.g., +254 712 345 678" required disabled={isSubmitting} value={phone} onChange={(e) => setPhone(e.target.value)} />
                   </div>
                 </div>
 
@@ -285,7 +357,7 @@ export default function Register() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="kinFirstName">First Name *</Label>
-                      <Input id="kinFirstName" name="kinFirstName" placeholder="e.g., Fatuma" required disabled={isSubmitting} />
+                      <Input id="kinFirstName" name="kinFirstName" placeholder="e.g., Fatuma" required disabled={isSubmitting} value={kinFirstName} onChange={(e) => setKinFirstName(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="kinMiddleName">Middle Name</Label>
@@ -293,59 +365,134 @@ export default function Register() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="kinLastName">Last Name *</Label>
-                      <Input id="kinLastName" name="kinLastName" placeholder="e.g., Mohamed" required disabled={isSubmitting} />
+                      <Input id="kinLastName" name="kinLastName" placeholder="e.g., Mohamed" required disabled={isSubmitting} value={kinLastName} onChange={(e) => setKinLastName(e.target.value)} />
                     </div>
                   </div>
                   <div className="space-y-2 mt-4">
                     <Label htmlFor="kinPhone">Phone Number *</Label>
-                    <Input id="kinPhone" name="kinPhone" type="tel" placeholder="e.g., +254 700 000 000" required disabled={isSubmitting} />
+                    <Input id="kinPhone" name="kinPhone" type="tel" placeholder="e.g., +254 700 000 000" required disabled={isSubmitting} value={kinPhone} onChange={(e) => setKinPhone(e.target.value)} />
                   </div>
                 </div>
 
                 {/* Sports Selection */}
                 <div className="pt-4 border-t">
-                  <h3 className="text-lg font-semibold mb-4">Sports Selection *</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsSportsSectionOpen(!isSportsSectionOpen)}
+                    className="flex items-center justify-between w-full text-left mb-4"
+                  >
+                    <h3 className="text-lg font-semibold">Sports Selection *</h3>
+                    <ChevronDown
+                      className={`h-5 w-5 transition-transform duration-200 ${
+                        isSportsSectionOpen ? "transform rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {isSportsSectionOpen && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {sports
                       .filter((s: any) => !s.parentId)
                       .map((parent: any) => {
                         const children = sports.filter((s: any) => s.parentId === parent.id);
+                        const hasChildren = children.length > 0;
+                        
                         return (
                           <div key={parent.id} className="space-y-2">
-                            <div className="font-medium">{parent.name}</div>
-                            {children.length > 0 ? (
-                              <div className="ml-4 space-y-2">
-                                {children.map((child: any) => (
-                                  <div key={child.id} className="flex items-center space-x-2">
-                                    <Checkbox
-                                      id={`sport-${child.id}`}
-                                      checked={selectedSports.includes(child.id)}
-                                      onCheckedChange={() => toggleSport(child.id)}
-                                      disabled={isSubmitting}
-                                    />
-                                    <Label htmlFor={`sport-${child.id}`} className="text-sm font-normal cursor-pointer">
-                                      {child.name}
-                                    </Label>
-                                  </div>
-                                ))}
-                              </div>
+                            {hasChildren ? (
+                              // If parent has children, only show children as selectable
+                              <>
+                                <div className="font-medium">{parent.name}</div>
+                                <div className="ml-4 space-y-2">
+                                  {children.map((child: any) => {
+                                    // Check if this child is incompatible with any selected sport
+                                    const childIncompatibleIds = (child as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
+                                    const isIncompatibleWithSelected = selectedSports.some((selectedId) => 
+                                      childIncompatibleIds.includes(selectedId)
+                                    );
+                                    
+                                    // Check if any selected sport is incompatible with this child
+                                    let isIncompatibleFromSelected = false;
+                                    for (const selectedId of selectedSports) {
+                                      const selectedSport = sports.find((s: any) => s.id === selectedId);
+                                      if (selectedSport) {
+                                        const selectedIncompatibleIds = (selectedSport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
+                                        if (selectedIncompatibleIds.includes(child.id)) {
+                                          isIncompatibleFromSelected = true;
+                                          break;
+                                        }
+                                      }
+                                    }
+                                    
+                                    const isDisabled = isSubmitting || (selectedSports.length > 0 && (isIncompatibleWithSelected || isIncompatibleFromSelected) && !selectedSports.includes(child.id));
+                                    
+                                    return (
+                                      <div key={child.id} className="flex items-center space-x-2">
+                                        <Checkbox
+                                          id={`sport-${child.id}`}
+                                          checked={selectedSports.includes(child.id)}
+                                          onCheckedChange={() => toggleSport(child.id)}
+                                          disabled={isDisabled}
+                                        />
+                                        <Label 
+                                          htmlFor={`sport-${child.id}`} 
+                                          className={`text-sm font-normal ${isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                                        >
+                                          {child.name}
+                                        </Label>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </>
                             ) : (
+                              // If parent has no children, show parent as selectable
                               <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`sport-${parent.id}`}
-                                  checked={selectedSports.includes(parent.id)}
-                                  onCheckedChange={() => toggleSport(parent.id)}
-                                  disabled={isSubmitting}
-                                />
-                                <Label htmlFor={`sport-${parent.id}`} className="text-sm font-normal cursor-pointer">
-                                  {parent.name}
-                                </Label>
+                                {(() => {
+                                  // Check if this parent is incompatible with any selected sport
+                                  const parentIncompatibleIds = (parent as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
+                                  const isIncompatibleWithSelected = selectedSports.some((selectedId) => 
+                                    parentIncompatibleIds.includes(selectedId)
+                                  );
+                                  
+                                  // Check if any selected sport is incompatible with this parent
+                                  let isIncompatibleFromSelected = false;
+                                  for (const selectedId of selectedSports) {
+                                    const selectedSport = sports.find((s: any) => s.id === selectedId);
+                                    if (selectedSport) {
+                                      const selectedIncompatibleIds = (selectedSport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
+                                      if (selectedIncompatibleIds.includes(parent.id)) {
+                                        isIncompatibleFromSelected = true;
+                                        break;
+                                      }
+                                    }
+                                  }
+                                  
+                                  const isDisabled = isSubmitting || (selectedSports.length > 0 && (isIncompatibleWithSelected || isIncompatibleFromSelected) && !selectedSports.includes(parent.id));
+                                  
+                                  return (
+                                    <>
+                                      <Checkbox
+                                        id={`sport-${parent.id}`}
+                                        checked={selectedSports.includes(parent.id)}
+                                        onCheckedChange={() => toggleSport(parent.id)}
+                                        disabled={isDisabled}
+                                      />
+                                      <Label 
+                                        htmlFor={`sport-${parent.id}`} 
+                                        className={`text-sm font-normal ${isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                                      >
+                                        {parent.name}
+                                      </Label>
+                                    </>
+                                  );
+                                })()}
                               </div>
                             )}
                           </div>
                         );
                       })}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Indemnity */}

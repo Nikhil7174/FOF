@@ -77,18 +77,27 @@ export default function SportsAdminLogin() {
                       .filter((s: any) => !s.parentId)
                       .map((parent: any) => {
                         const children = (sports as any[]).filter((s: any) => s.parentId === parent.id);
-                        return (
-                          <React.Fragment key={parent.id}>
-                            <SelectItem value={parent.id} className="font-semibold">
+                        const hasChildren = children.length > 0;
+                        
+                        if (hasChildren) {
+                          // Parent has children - only show children
+                          return (
+                            <React.Fragment key={parent.id}>
+                              {children.map((child: any) => (
+                                <SelectItem key={child.id} value={child.id} className="pl-4 text-sm">
+                                  {parent.name} - {child.name}
+                                </SelectItem>
+                              ))}
+                            </React.Fragment>
+                          );
+                        } else {
+                          // Parent has no children - show parent
+                          return (
+                            <SelectItem key={parent.id} value={parent.id}>
                               {parent.name}
                             </SelectItem>
-                            {children.map((child: any) => (
-                              <SelectItem key={child.id} value={child.id} className="pl-12 text-sm">
-                                {parent.name} - {child.name}
-                              </SelectItem>
-                            ))}
-                          </React.Fragment>
-                        );
+                          );
+                        }
                       })}
                   </SelectContent>
                 </Select>

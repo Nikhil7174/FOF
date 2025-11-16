@@ -4,6 +4,7 @@ import { prisma } from "../index";
 import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
 import { SportType, Gender } from "@prisma/client";
 import { hashPassword } from "../utils/password";
+import { sendExport } from "../utils/export";
 
 const router = Router();
 
@@ -22,12 +23,25 @@ const createSportSchema = z.object({
   rules: z.string().optional().nullable(),
   adminEmail: z.string().email().optional().nullable(),
   adminPassword: z.string().optional().nullable(),
+  incompatibleSportIds: z.array(z.string()).optional(),
 });
 
 // List all sports
 router.get("/", async (req: AuthRequest, res: Response) => {
   try {
     const sports = await prisma.sport.findMany({
+      include: {
+        incompatibleWith: {
+          include: {
+            incompatibleSport: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      } as any,
       orderBy: { name: "asc" },
     });
 
@@ -82,7 +96,12 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
       include: {
         parent: true,
         children: true,
-      },
+        incompatibleWith: {
+          include: {
+            incompatibleSport: true,
+          },
+        },
+      } as any,
     });
 
     if (!sport) {
@@ -138,6 +157,18 @@ router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req:
         rules: data.rules,
         adminEmail: data.adminEmail || null,
         adminPassword: hashedAdminPassword || null,
+        incompatibleWith: data.incompatibleSportIds ? {
+          create: data.incompatibleSportIds.map((incompatibleId) => ({
+            incompatibleSportId: incompatibleId,
+          })),
+        } : undefined,
+      } as any,
+      include: {
+        incompatibleWith: {
+          include: {
+            incompatibleSport: true,
+          },
+        },
       } as any,
     });
 
@@ -212,9 +243,38 @@ router.patch("/:id", authenticate, requireRole("admin", "sports_admin"), async (
       delete updateData.adminPassword;
     }
 
+    // Remove incompatibleSportIds from updateData as it's not a Prisma field
+    const incompatibleSportIds = updateData.incompatibleSportIds;
+    delete updateData.incompatibleSportIds;
+
+    // Handle incompatible sports
+    if (incompatibleSportIds !== undefined) {
+      // Delete existing incompatible sports
+      await (prisma as any).sportIncompatibility.deleteMany({
+        where: { sportId: id },
+      });
+
+      // Create new incompatible sports if provided
+      if (incompatibleSportIds.length > 0) {
+        await (prisma as any).sportIncompatibility.createMany({
+          data: incompatibleSportIds.map((incompatibleId: string) => ({
+            sportId: id,
+            incompatibleSportId: incompatibleId,
+          })),
+        });
+      }
+    }
+
     const sport = await prisma.sport.update({
       where: { id },
       data: updateData,
+      include: {
+        incompatibleWith: {
+          include: {
+            incompatibleSport: true,
+          },
+        },
+      } as any,
     });
 
     res.json(sport);
@@ -250,6 +310,50 @@ router.delete("/:id", authenticate, requireRole("admin", "sports_admin"), async 
       return res.status(404).json({ error: "Sport not found" });
     }
     res.status(500).json({ error: error.message || "Failed to delete sport" });
+  }
+});
+
+// Export sports
+router.get("/export/:format", authenticate, requireRole("admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { format } = req.params;
+    if (!["csv", "excel"].includes(format)) {
+      return res.status(400).json({ error: "Invalid format. Use 'csv' or 'excel'" });
+    }
+
+    const sports = await prisma.sport.findMany({
+      include: {
+        parent: true,
+      },
+      orderBy: { name: "asc" },
+    });
+
+    const exportData = sports.map((s) => ({
+      id: s.id,
+      name: s.name,
+      type: s.type,
+      requiresTeamName: s.requiresTeamName ? "Yes" : "No",
+      parent: s.parent?.name || "-",
+      active: s.active ? "Yes" : "No",
+      venue: s.venue || "",
+      timings: s.timings || "",
+      date: s.date ? s.date.toISOString().split("T")[0] : "",
+      gender: s.gender || "",
+      ageLimitMin: s.ageLimitMin || "",
+      ageLimitMax: s.ageLimitMax || "",
+      rules: s.rules || "",
+      adminEmail: s.adminEmail || "",
+      createdAt: s.createdAt.toISOString(),
+      updatedAt: s.updatedAt.toISOString(),
+    }));
+
+    const headers = [
+      "id", "name", "type", "requiresTeamName", "parent", "active", "venue", "timings", "date",
+      "gender", "ageLimitMin", "ageLimitMax", "rules", "adminEmail", "createdAt", "updatedAt"
+    ];
+    sendExport(res, exportData, headers, { filename: "sports", format: format as "csv" | "excel" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to export sports" });
   }
 });
 

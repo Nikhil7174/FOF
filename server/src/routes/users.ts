@@ -4,6 +4,7 @@ import { prisma } from "../index";
 import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
 import { hashPassword } from "../utils/password";
 import { Role } from "@prisma/client";
+import { sendExport } from "../utils/export";
 
 const router = Router();
 
@@ -188,6 +189,63 @@ router.delete("/:id", authenticate, requireRole("admin"), async (req: AuthReques
       return res.status(404).json({ error: "User not found" });
     }
     res.status(500).json({ error: error.message || "Failed to delete user" });
+  }
+});
+
+// Export users
+router.get("/export/:format", authenticate, requireRole("admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { format } = req.params;
+    if (!["csv", "excel"].includes(format)) {
+      return res.status(400).json({ error: "Invalid format. Use 'csv' or 'excel'" });
+    }
+
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        communityId: true,
+        sportId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // Get community and sport names
+    const communities = await prisma.community.findMany({ select: { id: true, name: true } });
+    const sports = await prisma.sport.findMany({ select: { id: true, name: true, parentId: true } });
+
+    const exportData = users.map((user) => {
+      const community = communities.find((c) => c.id === user.communityId);
+      const sport = sports.find((s) => s.id === user.sportId);
+      let sportName = "-";
+      if (sport) {
+        if (sport.parentId) {
+          const parent = sports.find((s) => s.id === sport.parentId);
+          sportName = parent ? `${parent.name} - ${sport.name}` : sport.name;
+        } else {
+          sportName = sport.name;
+        }
+      }
+      return {
+        id: user.id,
+        username: user.username,
+        email: user.email || "",
+        role: user.role,
+        community: community?.name || "-",
+        sport: sportName,
+        createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt.toISOString(),
+      };
+    });
+
+    const headers = ["id", "username", "email", "role", "community", "sport", "createdAt", "updatedAt"];
+    sendExport(res, exportData, headers, { filename: "users", format: format as "csv" | "excel" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to export users" });
   }
 });
 

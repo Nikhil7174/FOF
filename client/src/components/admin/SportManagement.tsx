@@ -43,9 +43,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Edit, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { ExportButton } from "@/components/ui/export-button";
+import { SportSelect } from "@/components/ui/sport-select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
 
 const sportSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -90,6 +96,7 @@ const sportSchema = z.object({
     .nullable()
     .or(z.literal("")),
   adminPassword: z.string().optional().nullable(),
+  incompatibleSportIds: z.array(z.string()).optional(),
 });
 
 type SportFormData = z.infer<typeof sportSchema>;
@@ -100,6 +107,7 @@ export function SportManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [sportToDelete, setSportToDelete] = useState<SportRecord | null>(null);
   const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
+  const [incompatibleSportsOpen, setIncompatibleSportsOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: sports = [], isLoading: isLoadingSports } = useQuery({
@@ -132,6 +140,7 @@ export function SportManagement() {
       convenorEmail: "",
       adminEmail: "",
       adminPassword: "",
+      incompatibleSportIds: [],
     },
   });
 
@@ -164,7 +173,12 @@ export function SportManagement() {
           : null,
         rules: data.rules?.trim() || null,
       };
-      const sport = await api.createSport(sportData);
+      const sport = await api.createSport({
+        ...sportData,
+        // For new sports: include incompatible sports if it's a sub-sport OR a parent (we allow it initially)
+        // When editing, we'll check for children and clear if needed
+        incompatibleSportIds: data.incompatibleSportIds || [],
+      });
       
       // Create convenor if provided (with null safety)
       if (sport?.id && data.convenorName?.trim() && data.convenorPhone?.trim() && data.convenorEmail?.trim()) {
@@ -254,7 +268,16 @@ export function SportManagement() {
       // If adminPassword is "***" or undefined, don't include it (keep existing)
       
       console.log("Sending sportData to API:", sportData);
-      const sport = await api.updateSport(id, sportData);
+      // Check if this is a parent sport with children
+      const isParentWithChildren = !data.parentId && sports.some((s) => s.parentId === id);
+      
+      const sport = await api.updateSport(id, {
+        ...sportData,
+        // Include incompatible sports if it's a sub-sport OR a parent without children
+        incompatibleSportIds: (data.parentId || (!data.parentId && !isParentWithChildren)) 
+          ? (data.incompatibleSportIds || []) 
+          : [],
+      });
       console.log("API response:", sport);
       
       // Handle convenor update - fetch current convenors with null safety
@@ -360,6 +383,22 @@ export function SportManagement() {
         convenorEmail: convenor?.email ?? "",
         adminEmail: sport.adminEmail ?? "",
         adminPassword: sport.adminPassword ? "***" : "", // Mask existing password
+        // Load incompatible sports if this is a sub-sport OR a parent without children
+        incompatibleSportIds: (() => {
+          if (sport.parentId) {
+            // Sub-sport: load incompatible sports
+            return (sport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
+          } else {
+            // Parent sport: check if it has children
+            const hasChildren = sports.some((s) => s.parentId === sport.id);
+            if (!hasChildren) {
+              // Parent without children: load incompatible sports
+              return (sport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
+            }
+            // Parent with children: don't load incompatible sports
+            return [];
+          }
+        })(),
       });
     } else {
       setEditingSport(null);
@@ -390,7 +429,22 @@ export function SportManagement() {
 
   const handleSubmitError = (errors: any) => {
     console.log("Form validation errors:", errors);
-    alert(`Form validation failed. Please check the form fields.\nErrors: ${JSON.stringify(errors, null, 2)}`);
+    // Extract error messages without circular references
+    const errorMessages: Record<string, string> = {};
+    if (errors && typeof errors === 'object') {
+      Object.keys(errors).forEach((key) => {
+        const error = errors[key];
+        if (error?.message) {
+          errorMessages[key] = error.message;
+        } else if (typeof error === 'string') {
+          errorMessages[key] = error;
+        }
+      });
+    }
+    const errorText = Object.keys(errorMessages).length > 0
+      ? Object.entries(errorMessages).map(([field, message]) => `${field}: ${message}`).join('\n')
+      : 'Please check the form fields for errors.';
+    alert(`Form validation failed.\n\n${errorText}`);
   };
 
   const handleDelete = (sport: SportRecord) => {
@@ -413,14 +467,20 @@ export function SportManagement() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Sports Management</h2>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Sport
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex gap-2">
+          <ExportButton
+            onExportCSV={() => api.exportSports("csv")}
+            onExportExcel={() => api.exportSports("excel")}
+            disabled={isLoadingSports}
+          />
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => handleOpenDialog()}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Sport
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingSport ? "Edit Sport" : "Create New Sport"}</DialogTitle>
               <DialogDescription>
@@ -467,7 +527,18 @@ export function SportManagement() {
                 <Label htmlFor="parentId">Parent Sport (optional)</Label>
                 <Select
                   value={form.watch("parentId") ?? "none"}
-                  onValueChange={(value) => form.setValue("parentId", value === "none" ? null : value)}
+                  onValueChange={(value) => {
+                    const newParentId = value === "none" ? null : value;
+                    const currentSportId = editingSport?.id;
+                    form.setValue("parentId", newParentId);
+                    // Clear incompatible sports if becoming a parent sport WITH children
+                    if (!newParentId && currentSportId) {
+                      const hasChildren = sports.some((s) => s.parentId === currentSportId);
+                      if (hasChildren) {
+                        form.setValue("incompatibleSportIds", []);
+                      }
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="No parent (top-level sport)" />
@@ -631,6 +702,158 @@ export function SportManagement() {
                 </Label>
               </div>
 
+              {/* Show incompatible sports for sub-sports OR parent sports without children */}
+              {(() => {
+                const currentParentId = form.watch("parentId");
+                const currentSportId = editingSport?.id;
+                // For new sports (no editingSport), always show if it's a parent (we'll allow it)
+                // For existing sports, check if it has children
+                if (!currentSportId) {
+                  // New sport: show for both sub-sports and parent sports
+                  return true;
+                }
+                // Existing sport: check if it has children
+                const hasChildren = !currentParentId 
+                  ? sports.some((s) => s.parentId === currentSportId)
+                  : false;
+                // Show if it's a sub-sport (has parentId) OR if it's a parent without children
+                return currentParentId || (!currentParentId && !hasChildren);
+              })() && (
+                <div className="space-y-2">
+                  <Label htmlFor="incompatibleSports">Incompatible Sports</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Select sports that cannot be selected together with this sport during registration
+                  </p>
+                  <Popover open={incompatibleSportsOpen} onOpenChange={setIncompatibleSportsOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between"
+                    >
+                      {form.watch("incompatibleSportIds")?.length > 0
+                        ? `${form.watch("incompatibleSportIds").length} sport(s) selected`
+                        : "Select incompatible sports..."}
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search sports..." />
+                      <CommandList className="max-h-60">
+                        <CommandEmpty>No sports found.</CommandEmpty>
+                        {sports
+                          .filter((s) => !s.parentId && (editingSport ? s.id !== editingSport.id : true))
+                          .map((parent) => {
+                            const children = sports.filter((s) => s.parentId === parent.id && (editingSport ? s.id !== editingSport.id : true));
+                            const hasChildren = children.length > 0;
+                            
+                            return (
+                              <CommandGroup key={parent.id} heading={parent.name}>
+                                {hasChildren ? (
+                                  // If parent has children, only show children as selectable
+                                  children.map((child) => {
+                                    const isSelected = form.watch("incompatibleSportIds")?.includes(child.id) || false;
+                                    return (
+                                      <CommandItem
+                                        key={child.id}
+                                        value={`${parent.name} ${child.name}`}
+                                        onSelect={() => {
+                                          const current = form.watch("incompatibleSportIds") || [];
+                                          if (isSelected) {
+                                            form.setValue("incompatibleSportIds", current.filter((id) => id !== child.id));
+                                          } else {
+                                            form.setValue("incompatibleSportIds", [...current, child.id]);
+                                          }
+                                        }}
+                                        className="flex items-center gap-2 ml-4"
+                                      >
+                                        <Checkbox
+                                          checked={isSelected}
+                                          onCheckedChange={() => {
+                                            const current = form.watch("incompatibleSportIds") || [];
+                                            if (isSelected) {
+                                              form.setValue("incompatibleSportIds", current.filter((id) => id !== child.id));
+                                            } else {
+                                              form.setValue("incompatibleSportIds", [...current, child.id]);
+                                            }
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        {child.name}
+                                      </CommandItem>
+                                    );
+                                  })
+                                ) : (
+                                  // If parent has no children, show parent as selectable
+                                  (() => {
+                                    const parentSelected = form.watch("incompatibleSportIds")?.includes(parent.id) || false;
+                                    return (
+                                      <CommandItem
+                                        value={parent.name}
+                                        onSelect={() => {
+                                          const current = form.watch("incompatibleSportIds") || [];
+                                          if (parentSelected) {
+                                            form.setValue("incompatibleSportIds", current.filter((id) => id !== parent.id));
+                                          } else {
+                                            form.setValue("incompatibleSportIds", [...current, parent.id]);
+                                          }
+                                        }}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <Checkbox
+                                          checked={parentSelected}
+                                          onCheckedChange={() => {
+                                            const current = form.watch("incompatibleSportIds") || [];
+                                            if (parentSelected) {
+                                              form.setValue("incompatibleSportIds", current.filter((id) => id !== parent.id));
+                                            } else {
+                                              form.setValue("incompatibleSportIds", [...current, parent.id]);
+                                            }
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        {parent.name}
+                                      </CommandItem>
+                                    );
+                                  })()
+                                )}
+                              </CommandGroup>
+                            );
+                          })}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                {form.watch("incompatibleSportIds")?.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {form.watch("incompatibleSportIds").map((sportId) => {
+                      const sport = sports.find((s) => s.id === sportId);
+                      if (!sport) return null;
+                      const sportName = sport.parentId
+                        ? `${sports.find((p) => p.id === sport.parentId)?.name || ""} - ${sport.name}`
+                        : sport.name;
+                      return (
+                        <Badge key={sportId} variant="secondary" className="gap-1">
+                          {sportName}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const current = form.watch("incompatibleSportIds") || [];
+                              form.setValue("incompatibleSportIds", current.filter((id) => id !== sportId));
+                            }}
+                            className="ml-1 rounded-full outline-none focus:ring-2 focus:ring-ring"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+                </div>
+              )}
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancel
@@ -645,6 +868,7 @@ export function SportManagement() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="rounded-md border">

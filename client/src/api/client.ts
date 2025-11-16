@@ -4,6 +4,7 @@
 import type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry } from "@/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://fof-klcd.onrender.com/api";
+// const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 // Get auth token from localStorage
 function getToken(): string | null {
@@ -553,6 +554,111 @@ export const api = {
   async deleteLeaderboardEntry(id: string): Promise<boolean> {
     await request(`/leaderboard/${id}`, { method: "DELETE" });
     return true;
+  },
+
+  // Export functions
+  async exportUsers(format: "csv" | "excel"): Promise<void> {
+    const token = getToken();
+    const url = `${API_BASE_URL}/users/export/${format}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) throw new Error("Export failed");
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `users.${format === "csv" ? "csv" : "xlsx"}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(a);
+  },
+
+  async exportParticipants(format: "csv" | "excel"): Promise<void> {
+    const token = getToken();
+    const url = `${API_BASE_URL}/participants/export/${format}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) throw new Error("Export failed");
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    const contentDisposition = response.headers.get("content-disposition");
+    const filename = contentDisposition
+      ? contentDisposition.split("filename=")[1]?.replace(/"/g, "") || `participants.${format === "csv" ? "csv" : "xlsx"}`
+      : `participants.${format === "csv" ? "csv" : "xlsx"}`;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(a);
+  },
+
+  async exportVolunteers(format: "csv" | "excel"): Promise<void> {
+    const token = getToken();
+    const url = `${API_BASE_URL}/volunteers/export/${format}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) throw new Error("Export failed");
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `volunteers.${format === "csv" ? "csv" : "xlsx"}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(a);
+  },
+
+  async exportSports(format: "csv" | "excel"): Promise<void> {
+    const token = getToken();
+    const url = `${API_BASE_URL}/sports/export/${format}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) throw new Error("Export failed");
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `sports.${format === "csv" ? "csv" : "xlsx"}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(a);
+  },
+
+  async exportCommunities(format: "csv" | "excel"): Promise<void> {
+    const token = getToken();
+    const url = `${API_BASE_URL}/communities/export/${format}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) throw new Error("Export failed");
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `communities.${format === "csv" ? "csv" : "xlsx"}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(a);
   },
 };
 

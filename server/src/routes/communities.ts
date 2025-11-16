@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../index";
 import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
 import { hashPassword } from "../utils/password";
+import { sendExport } from "../utils/export";
 
 const router = Router();
 
@@ -203,6 +204,48 @@ router.delete("/:id", authenticate, requireRole("admin"), async (req: AuthReques
       return res.status(404).json({ error: "Community not found" });
     }
     res.status(500).json({ error: error.message || "Failed to delete community" });
+  }
+});
+
+// Export communities
+router.get("/export/:format", authenticate, requireRole("admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { format } = req.params;
+    if (!["csv", "excel"].includes(format)) {
+      return res.status(400).json({ error: "Invalid format. Use 'csv' or 'excel'" });
+    }
+
+    const communities = await prisma.community.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        active: true,
+        contactPerson: true,
+        phone: true,
+        email: true,
+        adminEmail: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    const exportData = communities.map((c) => ({
+      id: c.id,
+      name: c.name,
+      active: c.active ? "Yes" : "No",
+      contactPerson: c.contactPerson,
+      phone: c.phone,
+      email: c.email,
+      adminEmail: c.adminEmail || "",
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+    }));
+
+    const headers = ["id", "name", "active", "contactPerson", "phone", "email", "adminEmail", "createdAt", "updatedAt"];
+    sendExport(res, exportData, headers, { filename: "communities", format: format as "csv" | "excel" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to export communities" });
   }
 });
 

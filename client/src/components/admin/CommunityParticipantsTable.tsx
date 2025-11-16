@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Check, X, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { ExportButton } from "@/components/ui/export-button";
 
 export function CommunityParticipantsTable() {
   const { user } = useAuth();
@@ -109,7 +110,14 @@ export function CommunityParticipantsTable() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Participants ({communityParticipants.length})</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Participants ({communityParticipants.length})</CardTitle>
+          <ExportButton
+            onExportCSV={() => api.exportParticipants("csv")}
+            onExportExcel={() => api.exportParticipants("excel")}
+            disabled={isLoading}
+          />
+        </div>
       </CardHeader>
       <CardContent>
         <div className="rounded-md border">

@@ -4,6 +4,7 @@ import { prisma } from "../index";
 import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
 import { Gender, Role } from "@prisma/client";
 import { hashPassword } from "../utils/password";
+import { sendExport } from "../utils/export";
 
 const router = Router();
 
@@ -177,6 +178,60 @@ router.patch("/:id", authenticate, requireRole("admin", "volunteer_admin"), asyn
       return res.status(404).json({ error: "Volunteer not found" });
     }
     res.status(500).json({ error: error.message || "Failed to update volunteer" });
+  }
+});
+
+// Export volunteers
+router.get("/export/:format", authenticate, requireRole("admin", "volunteer_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { format } = req.params;
+    if (!["csv", "excel"].includes(format)) {
+      return res.status(400).json({ error: "Invalid format. Use 'csv' or 'excel'" });
+    }
+
+    const { sportId } = req.query;
+    const where: any = {};
+    if (sportId) {
+      where.sportId = sportId as string;
+    }
+
+    const volunteers = await prisma.volunteer.findMany({
+      where,
+      include: {
+        sport: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const exportData = volunteers.map((v) => {
+      let sportName = "-";
+      if (v.sport) {
+        if (v.sport.parentId) {
+          // We'd need to fetch parent, but for now just use sport name
+          sportName = v.sport.name;
+        } else {
+          sportName = v.sport.name;
+        }
+      }
+      return {
+        id: v.id,
+        firstName: v.firstName,
+        middleName: v.middleName || "",
+        lastName: v.lastName,
+        gender: v.gender,
+        dob: v.dob.toISOString().split("T")[0],
+        email: v.email,
+        phone: v.phone,
+        sport: sportName,
+        createdAt: v.createdAt.toISOString(),
+        updatedAt: v.updatedAt.toISOString(),
+      };
+    });
+
+    const headers = ["id", "firstName", "middleName", "lastName", "gender", "dob", "email", "phone", "sport", "createdAt", "updatedAt"];
+    sendExport(res, exportData, headers, { filename: "volunteers", format: format as "csv" | "excel" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to export volunteers" });
   }
 });
 

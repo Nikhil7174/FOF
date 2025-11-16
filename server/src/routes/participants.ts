@@ -5,6 +5,7 @@ import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
 import { ParticipantStatus, Gender, Role } from "@prisma/client";
 import { hashPassword } from "../utils/password";
 import { sendEmail } from "../utils/email";
+import { sendExport } from "../utils/export";
 
 const router = Router();
 
@@ -128,6 +129,37 @@ router.post("/", async (req: AuthRequest, res: Response) => {
 
     // Parse date
     const dob = typeof data.dob === "string" ? new Date(data.dob) : data.dob;
+
+    // Check for incompatible sports
+    if (data.sports.length > 1) {
+      const selectedSports = await prisma.sport.findMany({
+        where: { id: { in: data.sports } },
+        include: {
+          incompatibleWith: {
+            include: {
+              incompatibleSport: true,
+            },
+          },
+        } as any,
+      });
+
+      // Check if any selected sports are incompatible with each other
+      for (const sport of selectedSports) {
+        const incompatibleIds = sport.incompatibleWith.map((inc: any) => inc.incompatibleSportId);
+        const hasIncompatible = data.sports.some((selectedId) => 
+          selectedId !== sport.id && incompatibleIds.includes(selectedId)
+        );
+        
+        if (hasIncompatible) {
+          const incompatibleSport = selectedSports.find((s) => 
+            incompatibleIds.includes(s.id)
+          );
+          return res.status(400).json({ 
+            error: `Cannot select ${sport.name} and ${incompatibleSport?.name || 'another incompatible sport'} together. These sports are incompatible.` 
+          });
+        }
+      }
+    }
 
     // Hash password
     const hashedPassword = await hashPassword(data.password);
@@ -485,6 +517,94 @@ router.delete("/:id", authenticate, requireRole("admin", "community_admin", "spo
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Failed to delete participant" });
+  }
+});
+
+// Export participants
+router.get("/export/:format", authenticate, requireRole("admin", "community_admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { format } = req.params;
+    if (!["csv", "excel"].includes(format)) {
+      return res.status(400).json({ error: "Invalid format. Use 'csv' or 'excel'" });
+    }
+
+    const where: any = {};
+    
+    // Community admins can only see their community's participants
+    if (req.user!.role === "community_admin" && req.user!.communityId) {
+      where.communityId = req.user!.communityId;
+    }
+
+    const participants = await prisma.participant.findMany({
+      where,
+      include: {
+        community: true,
+        sports: {
+          include: {
+            sport: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // Sports admins can only see participants registered for their sport
+    let filteredParticipants = participants;
+    if (req.user!.role === "sports_admin" && req.user!.sportId) {
+      filteredParticipants = participants.filter((p: any) => 
+        p.sports.some((ps: any) => ps.sportId === req.user!.sportId)
+      );
+    }
+
+    const exportData = filteredParticipants.map((p: any) => {
+      const sportsList = p.sports.map((ps: any) => {
+        const sport = ps.sport;
+        if (sport.parentId) {
+          const parent = p.sports.find((ps2: any) => ps2.sport.id === sport.parentId)?.sport;
+          return parent ? `${parent.name} - ${sport.name}` : sport.name;
+        }
+        return sport.name;
+      }).join(", ");
+
+      const nextOfKin = p.nextOfKin as any;
+      return {
+        id: p.id,
+        firstName: p.firstName,
+        middleName: p.middleName || "",
+        lastName: p.lastName,
+        gender: p.gender,
+        dob: p.dob.toISOString().split("T")[0],
+        email: p.email,
+        phone: p.phone,
+        community: p.community?.name || "-",
+        sports: sportsList || "-",
+        teamName: p.teamName || "",
+        status: p.status,
+        nextOfKinFirstName: nextOfKin?.firstName || "",
+        nextOfKinMiddleName: nextOfKin?.middleName || "",
+        nextOfKinLastName: nextOfKin?.lastName || "",
+        nextOfKinPhone: nextOfKin?.phone || "",
+        createdAt: p.createdAt.toISOString(),
+        updatedAt: p.updatedAt.toISOString(),
+      };
+    });
+
+    const headers = [
+      "id", "firstName", "middleName", "lastName", "gender", "dob", "email", "phone",
+      "community", "sports", "teamName", "status",
+      "nextOfKinFirstName", "nextOfKinMiddleName", "nextOfKinLastName", "nextOfKinPhone",
+      "createdAt", "updatedAt"
+    ];
+    
+    const filename = req.user!.role === "community_admin" 
+      ? `participants-community-${req.user!.communityId}`
+      : req.user!.role === "sports_admin"
+      ? `participants-sport-${req.user!.sportId}`
+      : "participants";
+    
+    sendExport(res, exportData, headers, { filename, format: format as "csv" | "excel" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to export participants" });
   }
 });
 
