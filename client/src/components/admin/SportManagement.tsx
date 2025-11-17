@@ -53,6 +53,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
 
+const usernamePattern = /^[a-zA-Z0-9_.-]{3,30}$/;
+
 const sportSchema = z.object({
   name: z.string().min(1, "Name is required"),
   type: z.enum(["individual", "team"]),
@@ -90,6 +92,13 @@ const sportSchema = z.object({
     .email("Invalid email address")
     .optional()
     .or(z.literal("")),
+  adminUsername: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((val) => !val || val.trim().length === 0 || usernamePattern.test(val.trim()), {
+      message: "Username must be 3-30 characters (letters, numbers, dots, hyphens or underscores)",
+    }),
   adminEmail: z.string()
     .email("Invalid email address")
     .optional()
@@ -138,6 +147,7 @@ export function SportManagement() {
       convenorName: "",
       convenorPhone: "",
       convenorEmail: "",
+      adminUsername: "",
       adminEmail: "",
       adminPassword: "",
       incompatibleSportIds: [],
@@ -158,6 +168,7 @@ export function SportManagement() {
         // Only include date if it's a non-empty string, otherwise set to null to clear it
         date: data.date?.trim() && data.date.trim().length > 0 ? data.date.trim() : null,
         gender: data.gender ?? null,
+        adminUsername: data.adminUsername?.trim() && data.adminUsername.trim().length > 0 ? data.adminUsername.trim() : null,
         adminEmail: data.adminEmail?.trim() && data.adminEmail.trim().length > 0 ? data.adminEmail.trim() : null,
         adminPassword: data.adminPassword?.trim() && data.adminPassword.trim().length > 0 ? data.adminPassword.trim() : null,
         ageLimit: (data.ageLimitMin !== undefined && data.ageLimitMin !== null && data.ageLimitMin !== "") || 
@@ -257,6 +268,10 @@ export function SportManagement() {
       // Handle admin email and password
       if (data.adminEmail !== undefined) {
         sportData.adminEmail = data.adminEmail?.trim() && data.adminEmail.trim().length > 0 ? data.adminEmail.trim() : null;
+      }
+      if (data.adminUsername !== undefined) {
+        const trimmed = data.adminUsername?.trim() || "";
+        sportData.adminUsername = trimmed.length > 0 ? trimmed : null;
       }
       // Only update adminPassword if it's provided and not the masked value
       if (data.adminPassword !== undefined && data.adminPassword !== "***" && data.adminPassword.trim() !== "") {
@@ -381,6 +396,7 @@ export function SportManagement() {
         convenorName: convenor?.name ?? "",
         convenorPhone: convenor?.phone ?? "",
         convenorEmail: convenor?.email ?? "",
+        adminUsername: sport.adminUsername ?? "",
         adminEmail: sport.adminEmail ?? "",
         adminPassword: sport.adminPassword ? "***" : "", // Mask existing password
         // Load incompatible sports if this is a sub-sport OR a parent without children
@@ -417,13 +433,31 @@ export function SportManagement() {
       alert("Sport name is required");
       return;
     }
+
+    const trimmedAdminUsername = data.adminUsername?.trim() || "";
+    const adminUsernameChanged = trimmedAdminUsername !== (editingSport?.adminUsername ?? "");
+    if (trimmedAdminUsername && (!data.adminPassword || data.adminPassword === "***" || data.adminPassword.trim() === "")) {
+      if (!editingSport || adminUsernameChanged) {
+        form.setError("adminPassword", {
+          type: "manual",
+          message: "Admin password is required when assigning a username",
+        });
+        return;
+      }
+    }
+
+    const submission: SportFormData = {
+      ...data,
+      adminUsername: trimmedAdminUsername,
+      adminEmail: data.adminEmail?.trim() || "",
+    };
     
     if (editingSport?.id) {
       console.log("Calling update mutation with id:", editingSport.id);
-      updateMutation.mutate({ id: editingSport.id, data });
+      updateMutation.mutate({ id: editingSport.id, data: submission });
     } else {
       console.log("Calling create mutation");
-      createMutation.mutate(data);
+      createMutation.mutate(submission);
     }
   };
 
@@ -657,6 +691,22 @@ export function SportManagement() {
                 <Label className="text-base font-semibold">Sports Admin Credentials</Label>
                 <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
+                  <Label htmlFor="adminUsername">Admin Username</Label>
+                  <Input
+                    id="adminUsername"
+                    {...form.register("adminUsername")}
+                    placeholder="sports_admin"
+                    spellCheck={false}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Usernames can contain letters, numbers, dots, hyphens or underscores.
+                  </p>
+                  {form.formState.errors.adminUsername && (
+                    <p className="text-sm text-destructive">{form.formState.errors.adminUsername.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
                     <Label htmlFor="adminEmail">Admin Email</Label>
                     <Input id="adminEmail" type="email" {...form.register("adminEmail")} placeholder="admin@sport.com" />
                     {form.formState.errors.adminEmail && (

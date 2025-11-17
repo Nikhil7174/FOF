@@ -72,7 +72,23 @@ export function CommunityParticipantsTable() {
     deleteMutation.mutate(id);
   };
 
-  const getSportsForParticipant = (participantSports: any[]) => {
+  const getSportsForParticipant = (participantSports: any[], pendingSports?: string[] | null) => {
+    // If there are pending sports, show those instead
+    if (pendingSports && Array.isArray(pendingSports) && pendingSports.length > 0) {
+      return pendingSports
+        .map((id) => {
+          const sport = sports.find((s: any) => s.id === id);
+          if (!sport) return null;
+          // If it's a child sport, show parent - child format
+          if (sport.parentId) {
+            const parent = sports.find((s: any) => s.id === sport.parentId);
+            return parent ? `${parent.name} - ${sport.name}` : sport.name;
+          }
+          return sport.name;
+        })
+        .filter(Boolean);
+    }
+
     // Handle both formats: array of IDs or array of ParticipantSport objects
     if (!participantSports || participantSports.length === 0) return [];
     
@@ -154,7 +170,8 @@ export function CommunityParticipantsTable() {
                 </TableRow>
               ) : (
                 communityParticipants.map((p: any) => {
-                  const participantSports = getSportsForParticipant(p.sports || []);
+                  const hasPendingSports = p.pendingSports && Array.isArray(p.pendingSports) && p.pendingSports.length > 0;
+                  const participantSports = getSportsForParticipant(p.sports || [], p.pendingSports);
                   return (
                     <TableRow key={p.id}>
                       <TableCell className="font-medium">
@@ -163,16 +180,25 @@ export function CommunityParticipantsTable() {
                       <TableCell>{p.email}</TableCell>
                       <TableCell>{p.phone}</TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {participantSports.length > 0 ? (
-                            participantSports.map((sportName, idx) => (
-                              <Badge key={idx} variant="secondary">
-                                {sportName}
+                        <div className="space-y-1">
+                          {hasPendingSports && (
+                            <div className="text-xs text-muted-foreground mb-1">
+                              <Badge variant="outline" className="text-orange-600 border-orange-300">
+                                Pending Changes
                               </Badge>
-                            ))
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
+                            </div>
                           )}
+                          <div className="flex flex-wrap gap-1">
+                            {participantSports.length > 0 ? (
+                              participantSports.map((sportName, idx) => (
+                                <Badge key={idx} variant={hasPendingSports ? "default" : "secondary"}>
+                                  {sportName}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>{p.teamName || "-"}</TableCell>

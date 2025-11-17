@@ -9,8 +9,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Loader2, ChevronDown } from "lucide-react";
-import { api } from "@/api";
+import { api, type CreateParticipantInput } from "@/api";
 import { useNavigate } from "react-router-dom";
+
+const usernamePattern = /^[a-zA-Z0-9_.-]{3,30}$/;
 
 export default function Register() {
   const { toast } = useToast();
@@ -26,6 +28,10 @@ export default function Register() {
   const [lastName, setLastName] = useState<string>("");
   const [dob, setDob] = useState<string>("");
   const [email, setEmail] = useState<string>("");
+  const [username, setUsername] = useState<string>("");
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [isUsernameAvailable, setIsUsernameAvailable] = useState<boolean | null>(null);
+  const [usernameFeedback, setUsernameFeedback] = useState<string>("");
   const [phone, setPhone] = useState<string>("");
   const [kinFirstName, setKinFirstName] = useState<string>("");
   const [kinLastName, setKinLastName] = useState<string>("");
@@ -40,6 +46,7 @@ export default function Register() {
       lastName.trim() &&
       gender &&
       dob.trim() &&
+      username.trim() &&
       email.trim() &&
       phone.trim() &&
       password &&
@@ -53,7 +60,51 @@ export default function Register() {
     if (allFieldsFilled && !isSportsSectionOpen) {
       setIsSportsSectionOpen(true);
     }
-  }, [firstName, lastName, gender, dob, email, phone, password, confirmPassword, communityId, kinFirstName, kinLastName, kinPhone, isSportsSectionOpen]);
+  }, [firstName, lastName, gender, dob, username, email, phone, password, confirmPassword, communityId, kinFirstName, kinLastName, kinPhone, isSportsSectionOpen]);
+
+  useEffect(() => {
+    const trimmed = username.trim();
+
+    if (!trimmed) {
+      setIsUsernameAvailable(null);
+      setUsernameFeedback("");
+      setIsCheckingUsername(false);
+      return;
+    }
+
+    if (!usernamePattern.test(trimmed)) {
+      setIsUsernameAvailable(false);
+      setUsernameFeedback("Use 3-30 letters, numbers, dots, hyphens or underscores.");
+      setIsCheckingUsername(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsCheckingUsername(true);
+    setUsernameFeedback("Checking availability...");
+
+    const handler = window.setTimeout(async () => {
+      try {
+        const available = await api.checkUsernameAvailability(trimmed);
+        if (cancelled) return;
+        setIsUsernameAvailable(available);
+        setUsernameFeedback(available ? "Username is available!" : "This username is already taken.");
+      } catch {
+        if (cancelled) return;
+        setIsUsernameAvailable(false);
+        setUsernameFeedback("Couldn't verify username. Please try again.");
+      } finally {
+        if (!cancelled) {
+          setIsCheckingUsername(false);
+        }
+      }
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(handler);
+    };
+  }, [username]);
 
   const { data: communities = [] } = useQuery({
     queryKey: ["communities"],
@@ -65,8 +116,39 @@ export default function Register() {
     queryFn: api.listSports,
   });
 
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: api.getSettings,
+  });
+
+  const formatReferenceDate = (dateString?: string | null) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+  };
+
+  const ageReferenceDate = settings?.ageCalculatorDate ? new Date(settings.ageCalculatorDate) : null;
+  const ageReferenceLabel = ageReferenceDate ? formatReferenceDate(settings?.ageCalculatorDate) : null;
+
+  const calculateAge = (dobValue: string) => {
+    if (!dobValue) return null;
+    const birthDate = new Date(dobValue);
+    if (isNaN(birthDate.getTime())) return null;
+    const reference = ageReferenceDate ?? new Date();
+    let age = reference.getFullYear() - birthDate.getFullYear();
+    const monthDiff = reference.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && reference.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const calculatedAge = calculateAge(dob);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const trimmedUsername = username.trim();
     
     if (!agreedToIndemnity) {
       toast({ title: "Agreement Required", description: "Please agree to the indemnity form before submitting.", variant: "destructive" });
@@ -90,6 +172,26 @@ export default function Register() {
       toast({ title: "Gender Required", description: "Please select a gender.", variant: "destructive" });
       return;
     }
+
+    if (!trimmedUsername) {
+      toast({ title: "Username Required", description: "Please choose a username.", variant: "destructive" });
+      return;
+    }
+
+    if (!usernamePattern.test(trimmedUsername)) {
+      toast({ title: "Invalid Username", description: "Use 3-30 letters, numbers, dots, hyphens or underscores.", variant: "destructive" });
+      return;
+    }
+
+    if (isCheckingUsername) {
+      toast({ title: "Hold On", description: "Please wait for the username check to finish.", variant: "destructive" });
+      return;
+    }
+
+    if (isUsernameAvailable !== true) {
+      toast({ title: "Username Unavailable", description: usernameFeedback || "Please choose a different username.", variant: "destructive" });
+      return;
+    }
     
     // Validate password
     if (!password || password.length < 6) {
@@ -104,13 +206,14 @@ export default function Register() {
     }
     
     const form = new FormData(e.currentTarget);
-    const payload = {
+    const payload: CreateParticipantInput = {
       firstName: String(form.get("firstName") || ""),
       middleName: String(form.get("middleName") || ""),
       lastName: String(form.get("lastName") || ""),
       gender: gender as "male" | "female",
       dob: String(form.get("dob") || ""),
       email: String(form.get("email") || ""),
+      username: trimmedUsername,
       phone: String(form.get("phone") || ""),
       password: password,
       communityId: communityId.trim(),
@@ -132,7 +235,7 @@ export default function Register() {
     setIsSubmitting(true);
     
     try {
-      await api.createParticipant(payload as any);
+      await api.createParticipant(payload);
       
       // Try to send confirmation email, but don't fail if it doesn't work
       try {
@@ -144,7 +247,7 @@ export default function Register() {
       
       toast({ 
         title: "🎉 Registration Successful!", 
-        description: "Your account has been created! You can now login with your email and password. Your application is pending approval.",
+        description: `Your account has been created! Use your username (${trimmedUsername}) and password to log in once approved.`,
         duration: 5000,
       });
       
@@ -238,6 +341,17 @@ export default function Register() {
     setSelectedSports((prev) => [...prev, sportId]);
   };
 
+  const usernameHelperText =
+    usernameFeedback || "Use 3-30 letters, numbers, dots, hyphens or underscores.";
+  const usernameHelperTone =
+    isCheckingUsername
+      ? "text-muted-foreground"
+      : usernameFeedback
+      ? isUsernameAvailable
+        ? "text-emerald-600"
+        : "text-destructive"
+      : "text-muted-foreground";
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -303,6 +417,25 @@ export default function Register() {
                     <Label htmlFor="phone">Phone Number *</Label>
                     <Input id="phone" name="phone" type="tel" placeholder="e.g., +254 712 345 678" required disabled={isSubmitting} value={phone} onChange={(e) => setPhone(e.target.value)} />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="username">Create a Username *</Label>
+                  <Input 
+                    id="username"
+                    name="username"
+                    type="text"
+                    placeholder="e.g., ahmed_hassan26"
+                    required
+                    disabled={isSubmitting}
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    autoComplete="username"
+                    spellCheck={false}
+                  />
+                  <p className={`text-xs ${usernameHelperTone}`}>
+                    {isCheckingUsername ? "Checking availability..." : usernameHelperText}
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -511,7 +644,7 @@ export default function Register() {
                   </div>
                 </div>
 
-                <Button type="submit" size="lg" variant="hero" className="w-full" disabled={isSubmitting}>
+                <Button type="submit" size="lg" variant="hero" className="w-full" disabled={isSubmitting || isCheckingUsername}>
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />

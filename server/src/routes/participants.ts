@@ -16,6 +16,11 @@ const createParticipantSchema = z.object({
   gender: z.enum(["male", "female"]),
   dob: z.string().or(z.date()),
   email: z.string().email(),
+  username: z
+    .string()
+    .min(3, "Username must be at least 3 characters")
+    .max(30, "Username must be at most 30 characters")
+    .regex(/^[a-zA-Z0-9_.-]+$/, "Username can only include letters, numbers, underscores, hyphens or dots"),
   phone: z.string().min(1),
   password: z.string().min(6, "Password must be at least 6 characters"),
   communityId: z.string().min(1, "Community ID is required"),
@@ -53,6 +58,12 @@ router.get("/", authenticate, requireRole("admin", "community_admin", "sports_ad
       orderBy: { createdAt: "desc" },
     });
     
+    // Include pendingSports in the response
+    const participantsWithPending = participants.map((p: any) => ({
+      ...p,
+      pendingSports: p.pendingSports,
+    }));
+    
     // Debug logging for community admins
     if (req.user!.role === "community_admin") {
       console.log(`[Participants] Found ${participants.length} participants for community ${req.user!.communityId}`);
@@ -63,13 +74,13 @@ router.get("/", authenticate, requireRole("admin", "community_admin", "sports_ad
 
     // Sports admins can only see participants registered for their sport
     if (req.user!.role === "sports_admin" && req.user!.sportId) {
-      const filtered = participants.filter((p: any) => 
+      const filtered = participantsWithPending.filter((p: any) => 
         p.sports.some((ps: any) => ps.sportId === req.user!.sportId)
       );
       return res.json(filtered);
     }
 
-    res.json(participants);
+    res.json(participantsWithPending);
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Failed to list participants" });
   }
@@ -78,17 +89,8 @@ router.get("/", authenticate, requireRole("admin", "community_admin", "sports_ad
 // Get my participant (for regular users)
 router.get("/me", authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-      select: { email: true },
-    });
-
-    if (!user || !user.email) {
-      return res.json(null);
-    }
-
     const participant = await prisma.participant.findUnique({
-      where: { email: user.email },
+      where: { userId: req.user!.id },
       include: {
         community: true,
         sports: {
@@ -107,24 +109,16 @@ router.get("/me", authenticate, async (req: AuthRequest, res: Response) => {
 
 // Create participant
 router.post("/", async (req: AuthRequest, res: Response) => {
+  let createdUserId: string | null = null;
   try {
     const data = createParticipantSchema.parse(req.body);
-    
-    // Check if email already exists in Participant or User table
-    const existingParticipant = await prisma.participant.findUnique({
-      where: { email: data.email },
+
+    const existingUsername = await prisma.user.findUnique({
+      where: { username: data.username },
     });
 
-    if (existingParticipant) {
-      return res.status(409).json({ error: "Participant with this email already exists" });
-    }
-
-    const existingUser = await prisma.user.findUnique({
-      where: { email: data.email },
-    });
-
-    if (existingUser) {
-      return res.status(409).json({ error: "An account with this email already exists" });
+    if (existingUsername) {
+      return res.status(409).json({ error: "Username already exists" });
     }
 
     // Parse date
@@ -146,16 +140,14 @@ router.post("/", async (req: AuthRequest, res: Response) => {
       // Check if any selected sports are incompatible with each other
       for (const sport of selectedSports) {
         const incompatibleIds = sport.incompatibleWith.map((inc: any) => inc.incompatibleSportId);
-        const hasIncompatible = data.sports.some((selectedId) => 
-          selectedId !== sport.id && incompatibleIds.includes(selectedId)
+        const hasIncompatible = data.sports.some(
+          (selectedId) => selectedId !== sport.id && incompatibleIds.includes(selectedId)
         );
-        
+
         if (hasIncompatible) {
-          const incompatibleSport = selectedSports.find((s) => 
-            incompatibleIds.includes(s.id)
-          );
-          return res.status(400).json({ 
-            error: `Cannot select ${sport.name} and ${incompatibleSport?.name || 'another incompatible sport'} together. These sports are incompatible.` 
+          const incompatibleSport = selectedSports.find((s) => incompatibleIds.includes(s.id));
+          return res.status(400).json({
+            error: `Cannot select ${sport.name} and ${incompatibleSport?.name || "another incompatible sport"} together. These sports are incompatible.`,
           });
         }
       }
@@ -164,18 +156,17 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     // Hash password
     const hashedPassword = await hashPassword(data.password);
 
-    // Generate username from email (before @ symbol)
-    const username = data.email.split("@")[0] + "_" + Date.now().toString().slice(-6);
-
     // Create user account first
     const user = await prisma.user.create({
       data: {
-        username,
+        username: data.username,
         email: data.email,
         password: hashedPassword,
         role: Role.user,
       },
     });
+
+    createdUserId = user.id;
 
     // Create participant
     const participant = await prisma.participant.create({
@@ -190,6 +181,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
         communityId: data.communityId,
         nextOfKin: data.nextOfKin as any,
         teamName: data.teamName,
+        userId: user.id,
         sports: {
           create: data.sports.map((sportId) => ({
             sportId,
@@ -208,23 +200,20 @@ router.post("/", async (req: AuthRequest, res: Response) => {
 
     res.status(201).json(participant);
   } catch (error: any) {
+    if (createdUserId) {
+      try {
+        await prisma.user.delete({
+          where: { id: createdUserId },
+        });
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+
     if (error.name === "ZodError") {
       return res.status(400).json({ error: "Invalid input", details: error.errors });
     }
-    // If user creation succeeded but participant creation failed, clean up user
-    if (error.code === "P2002") {
-      const email = req.body?.email;
-      if (email) {
-        // Try to delete the user if it was created
-        try {
-          await prisma.user.deleteMany({
-            where: { email },
-          });
-        } catch (cleanupError) {
-          // Ignore cleanup errors
-        }
-      }
-    }
+
     res.status(500).json({ error: error.message || "Failed to create participant" });
   }
 });
@@ -249,7 +238,7 @@ router.patch("/:id/status", authenticate, requireRole("admin", "community_admin"
           },
         },
       },
-    });
+    }) as any;
 
     if (!participant) {
       return res.status(404).json({ error: "Participant not found" });
@@ -268,9 +257,37 @@ router.patch("/:id/status", authenticate, requireRole("admin", "community_admin"
       }
     }
 
+    // If accepting and there are pending sports, apply them
+    let updateData: any = { status: status as ParticipantStatus };
+    
+    if (status === "accepted" && participant.pendingSports) {
+      const pendingSportIds = participant.pendingSports as string[];
+      
+      // Delete existing sports
+      await prisma.participantSport.deleteMany({
+        where: { participantId: participant.id },
+      });
+
+      // Create new sports from pendingSports
+      if (pendingSportIds.length > 0) {
+        await prisma.participantSport.createMany({
+          data: pendingSportIds.map((sportId: string) => ({
+            participantId: participant.id,
+            sportId,
+          })),
+        });
+      }
+
+      // Clear pendingSports
+      updateData.pendingSports = null;
+    } else if (status === "rejected" && participant.pendingSports) {
+      // Clear pendingSports on rejection
+      updateData.pendingSports = null;
+    }
+
     const updated = await prisma.participant.update({
       where: { id },
-      data: { status: status as ParticipantStatus },
+      data: updateData,
       include: {
         community: true,
         sports: {
@@ -354,36 +371,53 @@ FOF 2026 Team
   }
 });
 
+// Helper function to check if profile updates are frozen
+async function isProfileFrozen(): Promise<{ frozen: boolean; freezeDate: Date | null }> {
+  const settings = await prisma.settings.findFirst();
+  if (!settings) {
+    return { frozen: false, freezeDate: null };
+  }
+  const profileFreezeDate = (settings as any).profileFreezeDate;
+  if (!profileFreezeDate) {
+    return { frozen: false, freezeDate: null };
+  }
+  const now = new Date();
+  const freezeDate = new Date(profileFreezeDate);
+  // Set time to end of day for freeze date
+  freezeDate.setHours(23, 59, 59, 999);
+  return { frozen: now > freezeDate, freezeDate: profileFreezeDate };
+}
+
 // Update participant profile details
 router.patch("/me", authenticate, async (req: AuthRequest, res: Response) => {
   try {
+    // Check if profile updates are frozen
+    const freezeCheck = await isProfileFrozen();
+    if (freezeCheck.frozen) {
+      return res.status(403).json({ 
+        error: "Profile updates are frozen", 
+        message: `Profile updates are no longer allowed after ${freezeCheck.freezeDate ? new Date(freezeCheck.freezeDate).toLocaleDateString() : 'the freeze date'}. Please contact an administrator if you need to make changes.` 
+      });
+    }
+
     const updateSchema = z.object({
       firstName: z.string().min(1).optional(),
-      middleName: z.string().optional(),
+      middleName: z.string().optional().nullable(),
       lastName: z.string().min(1).optional(),
       phone: z.string().min(1).optional(),
       nextOfKin: z.object({
         firstName: z.string().min(1),
-        middleName: z.string().optional(),
+        middleName: z.string().optional().nullable(),
         lastName: z.string().min(1),
         phone: z.string().min(1),
       }).optional(),
-      teamName: z.string().optional(),
+      teamName: z.string().optional().nullable(),
     });
 
     const data = updateSchema.parse(req.body);
 
-    const user = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-      select: { email: true },
-    });
-
-    if (!user || !user.email) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
     const participant = await prisma.participant.findUnique({
-      where: { email: user.email },
+      where: { userId: req.user!.id },
     });
 
     if (!participant) {
@@ -423,40 +457,67 @@ router.patch("/me", authenticate, async (req: AuthRequest, res: Response) => {
 // Update participant sports
 router.patch("/me/sports", authenticate, async (req: AuthRequest, res: Response) => {
   try {
+    // Check if profile updates are frozen
+    const freezeCheck = await isProfileFrozen();
+    if (freezeCheck.frozen) {
+      return res.status(403).json({ 
+        error: "Sports selection updates are frozen", 
+        message: `Sports selection updates are no longer allowed after ${freezeCheck.freezeDate ? new Date(freezeCheck.freezeDate).toLocaleDateString() : 'the freeze date'}. Please contact an administrator if you need to make changes.` 
+      });
+    }
+
     const { sportIds } = req.body;
 
     if (!Array.isArray(sportIds)) {
       return res.status(400).json({ error: "sportIds must be an array" });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-      select: { email: true },
-    });
-
-    if (!user || !user.email) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
     const participant = await prisma.participant.findUnique({
-      where: { email: user.email },
+      where: { userId: req.user!.id },
+      include: {
+        sports: true,
+      },
     });
 
     if (!participant) {
       return res.status(404).json({ error: "Participant not found" });
     }
 
-    // Delete existing sports
-    await prisma.participantSport.deleteMany({
-      where: { participantId: participant.id },
-    });
+    // Check if sports have actually changed
+    const currentSportIds = participant.sports.map((ps: any) => ps.sportId).sort();
+    const newSportIds = [...sportIds].sort();
+    const sportsChanged = JSON.stringify(currentSportIds) !== JSON.stringify(newSportIds);
 
-    // Create new sports
-    await prisma.participantSport.createMany({
-      data: sportIds.map((sportId: string) => ({
-        participantId: participant.id,
-        sportId,
-      })),
+    if (!sportsChanged) {
+      // No change, return current participant
+      const updated = await prisma.participant.findUnique({
+        where: { id: participant.id },
+        include: {
+          community: true,
+          sports: {
+            include: {
+              sport: true,
+            },
+          },
+        },
+      });
+      return res.json(updated);
+    }
+
+    // If participant was previously accepted, set status to pending and store new sports in pendingSports
+    // If already pending, just update pendingSports with the latest selection
+    const updateData: any = {
+      pendingSports: sportIds,
+    };
+
+    // Only set status to pending if it was previously accepted
+    if (participant.status === "accepted") {
+      updateData.status = "pending";
+    }
+
+    await prisma.participant.update({
+      where: { id: participant.id },
+      data: updateData,
     });
 
     const updated = await prisma.participant.findUnique({

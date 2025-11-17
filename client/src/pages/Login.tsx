@@ -77,20 +77,24 @@ export default function Login() {
               <LogIn className="h-8 w-8 text-primary-foreground" />
             </div>
             <CardTitle className="text-2xl">Login</CardTitle>
-            <CardDescription>Participant, Volunteer or Admin</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username">Username or Email</Label>
+                <Label htmlFor="username">Username</Label>
                 <Input 
                   id="username" 
                   name="username" 
                   type="text" 
-                  placeholder="e.g., admin or user@example.com" 
+                  placeholder="e.g., admin_user" 
                   required 
                   disabled={isSubmitting}
+                  autoComplete="username"
+                  spellCheck={false}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Use the username you created during registration.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -125,21 +129,10 @@ export default function Login() {
                 Register as Participant
               </Link>
             </div>
-            <div className="flex flex-col gap-2 text-sm text-center">
-              <Link to="/sports-admin-login" className="text-primary hover:underline font-medium">
-                Sports Admin Login
-              </Link>
-              <Link to="/community-admin-login" className="text-primary hover:underline font-medium">
-                Community Admin Login
-              </Link>
-              <Link to="/volunteer-admin-login" className="text-primary hover:underline font-medium">
-                Volunteer Admin Login
-              </Link>
-              <Link to="/volunteer-login" className="text-primary hover:underline font-medium">
-                Volunteer Login
-              </Link>
-              <Link to="/volunteer" className="text-secondary hover:underline font-medium">
-                Volunteer Sign-Up
+            <div className="text-sm text-center text-muted-foreground">
+              Want to help out?{" "}
+              <Link to="/volunteer" className="text-primary hover:underline font-medium">
+                Sign up as a Volunteer
               </Link>
             </div>
           </CardFooter>

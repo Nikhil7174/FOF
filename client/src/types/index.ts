@@ -22,6 +22,7 @@ export interface Participant {
   email: string;
   phone: string;
   communityId: string;
+  userId: string;
   nextOfKin: {
     firstName: string;
     middleName?: string;
@@ -30,6 +31,7 @@ export interface Participant {
   };
   sports: string[] | Array<{ sport: { id: string; name: string } }>; // Can be array of IDs or array of sport objects
   status: "pending" | "accepted" | "rejected";
+  pendingSports?: string[] | null;
   teamName?: string;
   createdAt: string;
   // Helper to get sport IDs array
@@ -47,6 +49,7 @@ export interface VolunteerEntry {
   phone: string;
   sportId?: string;
   sport?: SportRecord | null;
+  userId?: string;
   createdAt: string;
 }
 
@@ -68,6 +71,7 @@ export interface SportRecord {
   ageLimitMin?: number; // Alternative format
   ageLimitMax?: number; // Alternative format
   rules?: string;
+  adminUsername?: string | null;
   adminEmail?: string | null;
   adminPassword?: string | null;
 }
@@ -80,6 +84,7 @@ export interface CommunityRecord {
   phone: string;
   email: string;
   password?: string; // Optional password for community access
+  adminUsername?: string | null;
   adminEmail?: string | null;
   adminPassword?: string | null;
 }
@@ -99,7 +104,10 @@ export interface CalendarItem {
 }
 
 export interface SettingsRecord {
-  ageCalculatorDate: string;
+  id: string;
+  ageCalculatorDate?: string | null;
+  profileFreezeDate?: string | null;
+  updatedAt: string;
 }
 
 export interface CommunityContact {

@@ -4,8 +4,15 @@ import { prisma } from "../index";
 import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
 import { hashPassword } from "../utils/password";
 import { sendExport } from "../utils/export";
+import { Role } from "@prisma/client";
 
 const router = Router();
+
+const usernameFormatSchema = z
+  .string()
+  .min(3, "Username must be at least 3 characters")
+  .max(30, "Username must be at most 30 characters")
+  .regex(/^[a-zA-Z0-9_.-]+$/, "Username can only include letters, numbers, underscores, hyphens or dots");
 
 const createCommunitySchema = z.object({
   name: z.string().min(1),
@@ -14,9 +21,68 @@ const createCommunitySchema = z.object({
   phone: z.string().min(1),
   email: z.string().email(),
   password: z.string().optional(),
+  adminUsername: usernameFormatSchema.optional().nullable(),
   adminEmail: z.string().email().optional().nullable(),
   adminPassword: z.string().optional().nullable(),
 });
+
+async function syncCommunityAdminUser(options: {
+  communityId: string;
+  adminUsername?: string | null;
+  adminEmail?: string | null;
+  hashedPassword?: string | null;
+  passwordProvided?: boolean;
+}) {
+  const { communityId, adminUsername, adminEmail, hashedPassword, passwordProvided } = options;
+
+  if (!adminUsername) {
+    await prisma.user.deleteMany({
+      where: { communityId, role: "community_admin" },
+    });
+    return;
+  }
+
+  const existingWithUsername = await prisma.user.findUnique({
+    where: { username: adminUsername },
+  });
+
+  if (existingWithUsername && existingWithUsername.communityId !== communityId) {
+    throw new Error("Username already exists");
+  }
+
+  const existingAdmin = await prisma.user.findFirst({
+    where: { communityId, role: "community_admin" },
+  });
+
+  if (existingAdmin) {
+    const updateData: any = {
+      username: adminUsername,
+      email: adminEmail || undefined,
+    };
+    if (passwordProvided && hashedPassword) {
+      updateData.password = hashedPassword;
+    }
+    await prisma.user.update({
+      where: { id: existingAdmin.id },
+      data: updateData,
+    });
+    return;
+  }
+
+  if (!hashedPassword) {
+    throw new Error("Admin password is required when assigning a username");
+  }
+
+  await prisma.user.create({
+    data: {
+      username: adminUsername,
+      email: adminEmail || undefined,
+      password: hashedPassword,
+      role: Role.community_admin,
+      communityId,
+    },
+  });
+}
 
 // List communities (public - needed for login page)
 router.get("/", async (req: AuthRequest, res: Response) => {
@@ -30,6 +96,8 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         contactPerson: true,
         phone: true,
         email: true,
+        adminUsername: true,
+        adminEmail: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -55,6 +123,8 @@ router.get("/:id", authenticate, async (req: AuthRequest, res: Response) => {
         contactPerson: true,
         phone: true,
         email: true,
+        adminUsername: true,
+        adminEmail: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -79,9 +149,10 @@ router.post("/", authenticate, requireRole("admin"), async (req: AuthRequest, re
     const existing = await prisma.community.findFirst({
       where: {
         OR: [
-          { name: data.name }, 
+          { name: data.name },
           { email: data.email },
-          ...(data.adminEmail ? [{ adminEmail: data.adminEmail } as any] : [])
+          ...(data.adminEmail ? [{ adminEmail: data.adminEmail } as any] : []),
+          ...(data.adminUsername ? [{ adminUsername: data.adminUsername }] : []),
         ],
       } as any,
     });
@@ -101,6 +172,11 @@ router.post("/", authenticate, requireRole("admin"), async (req: AuthRequest, re
       hashedAdminPassword = await hashPassword(data.adminPassword);
     }
 
+    const adminUsername = data.adminUsername?.trim() ? data.adminUsername.trim() : null;
+    if (adminUsername && !data.adminPassword) {
+      return res.status(400).json({ error: "Admin password is required when setting an admin username" });
+    }
+
     const community = await prisma.community.create({
       data: {
         name: data.name,
@@ -109,6 +185,7 @@ router.post("/", authenticate, requireRole("admin"), async (req: AuthRequest, re
         phone: data.phone,
         email: data.email,
         password: hashedPassword,
+        adminUsername,
         adminEmail: data.adminEmail || null,
         adminPassword: hashedAdminPassword || null,
       },
@@ -124,10 +201,24 @@ router.post("/", authenticate, requireRole("admin"), async (req: AuthRequest, re
       },
     });
 
+    await syncCommunityAdminUser({
+      communityId: community.id,
+      adminUsername,
+      adminEmail: data.adminEmail || null,
+      hashedPassword: hashedAdminPassword || null,
+      passwordProvided: Boolean(data.adminPassword),
+    });
+
     res.status(201).json(community);
   } catch (error: any) {
     if (error.name === "ZodError") {
       return res.status(400).json({ error: "Invalid input", details: error.errors });
+    }
+    if (error.message === "Username already exists") {
+      return res.status(409).json({ error: error.message });
+    }
+    if (error.message === "Admin password is required when assigning a username") {
+      return res.status(400).json({ error: error.message });
     }
     res.status(500).json({ error: error.message || "Failed to create community" });
   }
@@ -157,9 +248,11 @@ router.patch("/:id", authenticate, requireRole("admin"), async (req: AuthRequest
     if (hashedAdminPassword !== undefined) {
       updateData.adminPassword = hashedAdminPassword;
     }
-    // Handle adminEmail separately (can be set to null to clear it)
     if (data.adminEmail !== undefined) {
       updateData.adminEmail = data.adminEmail || null;
+    }
+    if (data.adminUsername !== undefined) {
+      updateData.adminUsername = data.adminUsername?.trim() && data.adminUsername.trim().length > 0 ? data.adminUsername.trim() : null;
     }
 
     const community = await prisma.community.update({
@@ -172,9 +265,19 @@ router.patch("/:id", authenticate, requireRole("admin"), async (req: AuthRequest
         contactPerson: true,
         phone: true,
         email: true,
+        adminUsername: true,
+        adminEmail: true,
         createdAt: true,
         updatedAt: true,
       },
+    });
+
+    await syncCommunityAdminUser({
+      communityId: community.id,
+      adminUsername: community.adminUsername,
+      adminEmail: community.adminEmail,
+      hashedPassword: hashedAdminPassword || null,
+      passwordProvided: Boolean(data.adminPassword),
     });
 
     res.json(community);
@@ -184,6 +287,12 @@ router.patch("/:id", authenticate, requireRole("admin"), async (req: AuthRequest
     }
     if (error.code === "P2025") {
       return res.status(404).json({ error: "Community not found" });
+    }
+    if (error.message === "Username already exists") {
+      return res.status(409).json({ error: error.message });
+    }
+    if (error.message === "Admin password is required when assigning a username") {
+      return res.status(400).json({ error: error.message });
     }
     res.status(500).json({ error: error.message || "Failed to update community" });
   }
@@ -224,6 +333,7 @@ router.get("/export/:format", authenticate, requireRole("admin"), async (req: Au
         contactPerson: true,
         phone: true,
         email: true,
+        adminUsername: true,
         adminEmail: true,
         createdAt: true,
         updatedAt: true,
@@ -237,12 +347,24 @@ router.get("/export/:format", authenticate, requireRole("admin"), async (req: Au
       contactPerson: c.contactPerson,
       phone: c.phone,
       email: c.email,
+      adminUsername: c.adminUsername || "",
       adminEmail: c.adminEmail || "",
       createdAt: c.createdAt.toISOString(),
       updatedAt: c.updatedAt.toISOString(),
     }));
 
-    const headers = ["id", "name", "active", "contactPerson", "phone", "email", "adminEmail", "createdAt", "updatedAt"];
+    const headers = [
+      "id",
+      "name",
+      "active",
+      "contactPerson",
+      "phone",
+      "email",
+      "adminUsername",
+      "adminEmail",
+      "createdAt",
+      "updatedAt",
+    ];
     sendExport(res, exportData, headers, { filename: "communities", format: format as "csv" | "excel" });
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Failed to export communities" });
