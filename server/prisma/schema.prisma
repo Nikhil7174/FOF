@@ -46,7 +46,7 @@ enum MedalType {
 model User {
   id          String   @id @default(uuid())
   username    String   @unique
-  email       String?  @unique
+  email       String?
   password    String
   role        Role
   communityId String?
@@ -56,28 +56,33 @@ model User {
 
   community Community? @relation(fields: [communityId], references: [id])
   sport     Sport?     @relation(fields: [sportId], references: [id])
+  participant Participant?
+  volunteer   Volunteer?
 
   @@index([username])
   @@index([email])
 }
 
 model Participant {
-  id          String           @id @default(uuid())
-  firstName   String
-  middleName  String?
-  lastName    String
-  gender      Gender
-  dob         DateTime
-  email       String           @unique
-  phone       String
-  communityId String
-  nextOfKin   Json // { firstName, middleName?, lastName, phone }
-  status      ParticipantStatus @default(pending)
-  teamName    String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id            String           @id @default(uuid())
+  firstName     String
+  middleName    String?
+  lastName      String
+  gender        Gender
+  dob           DateTime
+  email         String
+  phone         String
+  communityId   String
+  userId        String           @unique
+  nextOfKin     Json // { firstName, middleName?, lastName, phone }
+  status        ParticipantStatus @default(pending)
+  teamName      String?
+  pendingSports Json?            // Array of sport IDs for pending approval
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   community Community         @relation(fields: [communityId], references: [id])
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   sports    ParticipantSport[]
 
   @@index([email])
@@ -109,15 +114,18 @@ model Volunteer {
   phone        String
   departmentId String?
   sportId      String?
+  userId       String    @unique
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   department Department? @relation(fields: [departmentId], references: [id])
   sport      Sport?     @relation(fields: [sportId], references: [id])
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([email])
   @@index([departmentId])
   @@index([sportId])
+  @@index([userId])
 }
 
 model Community {
@@ -128,6 +136,7 @@ model Community {
   phone        String
   email        String    @unique
   password     String?
+  adminUsername String?   @unique
   adminEmail   String?   @unique
   adminPassword String?
   createdAt    DateTime  @default(now())
@@ -139,6 +148,7 @@ model Community {
   leaderboardEntries LeaderboardEntry[]
 
   @@index([name])
+  @@index([adminUsername])
   @@index([adminEmail])
 }
 
@@ -157,6 +167,7 @@ model Sport {
   ageLimitMax    Int?
   convenorId     String?   @unique
   rules          String?
+  adminUsername  String?   @unique
   adminEmail     String?   @unique
   adminPassword  String?
   createdAt      DateTime  @default(now())
@@ -170,11 +181,28 @@ model Sport {
   calendarItems CalendarItem[]
   convenor      Convenor?           @relation(fields: [convenorId], references: [id])
   leaderboardEntries LeaderboardEntry[]
+  incompatibleWith SportIncompatibility[] @relation("SportIncompatible")
+  incompatibleSports SportIncompatibility[] @relation("IncompatibleWith")
 
   @@index([parentId])
   @@index([name])
   @@index([convenorId])
+  @@index([adminUsername])
   @@index([adminEmail])
+}
+
+model SportIncompatibility {
+  id            String   @id @default(uuid())
+  sportId       String
+  incompatibleSportId String
+  createdAt     DateTime @default(now())
+
+  sport             Sport @relation("SportIncompatible", fields: [sportId], references: [id], onDelete: Cascade)
+  incompatibleSport Sport @relation("IncompatibleWith", fields: [incompatibleSportId], references: [id], onDelete: Cascade)
+
+  @@unique([sportId, incompatibleSportId])
+  @@index([sportId])
+  @@index([incompatibleSportId])
 }
 
 model Department {
@@ -203,9 +231,10 @@ model CalendarItem {
 }
 
 model Settings {
-  id                String   @id @default(uuid())
+  id                String    @id @default(uuid())
   ageCalculatorDate DateTime
-  updatedAt         DateTime @updatedAt
+  profileFreezeDate DateTime?
+  updatedAt         DateTime  @updatedAt
 }
 
 model Email {

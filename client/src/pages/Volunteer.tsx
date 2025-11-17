@@ -4,20 +4,69 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { api } from "@/api";
-import { useQuery } from "@tanstack/react-query";
+import { api, type CreateVolunteerInput } from "@/api";
 import { useToast } from "@/hooks/use-toast";
 import { Heart, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+const usernamePattern = /^[a-zA-Z0-9_.-]{3,30}$/;
 
 export default function Volunteer() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [gender, setGender] = useState<string>("");
+  const [username, setUsername] = useState<string>("");
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [isUsernameAvailable, setIsUsernameAvailable] = useState<boolean | null>(null);
+  const [usernameFeedback, setUsernameFeedback] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [confirmPassword, setConfirmPassword] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const trimmed = username.trim();
+
+    if (!trimmed) {
+      setIsUsernameAvailable(null);
+      setUsernameFeedback("");
+      setIsCheckingUsername(false);
+      return;
+    }
+
+    if (!usernamePattern.test(trimmed)) {
+      setIsUsernameAvailable(false);
+      setUsernameFeedback("Use 3-30 letters, numbers, dots, hyphens or underscores.");
+      setIsCheckingUsername(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsCheckingUsername(true);
+    setUsernameFeedback("Checking availability...");
+
+    const handler = window.setTimeout(async () => {
+      try {
+        const available = await api.checkUsernameAvailability(trimmed);
+        if (cancelled) return;
+        setIsUsernameAvailable(available);
+        setUsernameFeedback(available ? "Username is available!" : "This username is already taken.");
+      } catch {
+        if (cancelled) return;
+        setIsUsernameAvailable(false);
+        setUsernameFeedback("Couldn't verify username. Please try again.");
+      } finally {
+        if (!cancelled) {
+          setIsCheckingUsername(false);
+        }
+      }
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handler);
+    };
+  }, [username]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -25,6 +74,43 @@ export default function Volunteer() {
     const firstName = String(form.get("firstName") || "");
     const lastName = String(form.get("lastName") || "");
     const email = String(form.get("email") || "");
+    const trimmedUsername = username.trim();
+
+    if (!trimmedUsername) {
+      toast({
+        title: "Username Required",
+        description: "Please choose a username.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!usernamePattern.test(trimmedUsername)) {
+      toast({
+        title: "Invalid Username",
+        description: "Use 3-30 letters, numbers, dots, hyphens or underscores.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isCheckingUsername) {
+      toast({
+        title: "Hold On",
+        description: "Please wait for the username check to finish.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isUsernameAvailable !== true) {
+      toast({
+        title: "Username Unavailable",
+        description: usernameFeedback || "Please choose a different username.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Validate password
     if (!password || password.length < 6) {
@@ -49,17 +135,19 @@ export default function Volunteer() {
     setIsSubmitting(true);
 
     try {
-      // Create volunteer entry with password
-      await api.createVolunteer({
+      const payload: CreateVolunteerInput = {
         firstName,
         middleName: String(form.get("middleName") || ""),
         lastName,
         gender: (gender || "male") as "male" | "female",
         dob: String(form.get("dob") || ""),
         email,
+        username: trimmedUsername,
         phone: String(form.get("phone") || ""),
         password,
-      });
+      };
+
+      await api.createVolunteer(payload);
 
       // Try to send confirmation email, but don't fail if it doesn't work
       try {
@@ -70,13 +158,12 @@ export default function Volunteer() {
 
       toast({ 
         title: "🎉 Registration Successful!", 
-        description: "Your volunteer account has been created! You can now login with your email and password.",
+        description: `Your volunteer account has been created! Use your username (${trimmedUsername}) and password to log in once approved.`,
         duration: 5000,
       });
 
-      // Wait a moment to show the success message, then redirect to volunteer login
       setTimeout(() => {
-        navigate("/volunteer-login");
+        navigate("/login");
       }, 2000);
     } catch (err: any) {
       let errorMessage = "Something went wrong. Please try again.";
@@ -219,6 +306,37 @@ export default function Volunteer() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="username">Create a Username *</Label>
+                  <Input
+                    id="username"
+                    name="username"
+                    type="text"
+                    placeholder="e.g., sarah_volunteer"
+                    required
+                    disabled={isSubmitting}
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    autoComplete="username"
+                    spellCheck={false}
+                  />
+                  <p
+                    className={`text-xs ${
+                      isCheckingUsername
+                        ? "text-muted-foreground"
+                        : usernameFeedback
+                        ? isUsernameAvailable
+                          ? "text-emerald-600"
+                          : "text-destructive"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {isCheckingUsername
+                      ? "Checking availability..."
+                      : usernameFeedback || "Use 3-30 letters, numbers, dots, hyphens or underscores."}
+                  </p>
+                </div>
+
                 <div className="pt-4 border-t">
                   <h3 className="text-lg font-semibold mb-4">Login Credentials</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -251,7 +369,13 @@ export default function Volunteer() {
                   </div>
                 </div>
 
-                <Button type="submit" size="lg" variant="hero" className="w-full" disabled={isSubmitting}>
+                <Button
+                  type="submit"
+                  size="lg"
+                  variant="hero"
+                  className="w-full"
+                  disabled={isSubmitting || isCheckingUsername}
+                >
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />

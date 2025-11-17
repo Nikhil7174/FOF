@@ -6,10 +6,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
-import SportsAdminLogin from "./pages/SportsAdminLogin";
-import CommunityAdminLogin from "./pages/CommunityAdminLogin";
-import VolunteerAdminLogin from "./pages/VolunteerAdminLogin";
-import VolunteerLogin from "./pages/VolunteerLogin";
 import Volunteer from "./pages/Volunteer";
 import Calendar from "./pages/Calendar";
 import Sports from "./pages/Sports";
@@ -103,10 +99,6 @@ const App = () => (
             <Route path="/thank-you" element={<ThankYou />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
-            <Route path="/sports-admin-login" element={<GuestRoute><SportsAdminLogin /></GuestRoute>} />
-            <Route path="/community-admin-login" element={<GuestRoute><CommunityAdminLogin /></GuestRoute>} />
-            <Route path="/volunteer-admin-login" element={<GuestRoute><VolunteerAdminLogin /></GuestRoute>} />
-            <Route path="/volunteer-login" element={<GuestRoute><VolunteerLogin /></GuestRoute>} />
             <Route path="/volunteer" element={<Volunteer />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/sports" element={<Sports />} />

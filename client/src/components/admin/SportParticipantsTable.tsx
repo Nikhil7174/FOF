@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Check, X, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { ExportButton } from "@/components/ui/export-button";
 
 export function SportParticipantsTable() {
   const { user } = useAuth();
@@ -60,7 +61,14 @@ export function SportParticipantsTable() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Participants ({sportParticipants.length})</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Participants ({sportParticipants.length})</CardTitle>
+          <ExportButton
+            onExportCSV={() => api.exportParticipants("csv")}
+            onExportExcel={() => api.exportParticipants("excel")}
+            disabled={isLoading}
+          />
+        </div>
       </CardHeader>
       <CardContent>
         <div className="rounded-md border">

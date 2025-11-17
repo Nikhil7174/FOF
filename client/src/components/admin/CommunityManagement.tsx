@@ -36,9 +36,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Edit, Trash2, Users } from "lucide-react";
+import { ExportButton } from "@/components/ui/export-button";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+
+const usernamePattern = /^[a-zA-Z0-9_.-]{3,30}$/;
 
 const communitySchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -53,6 +56,13 @@ const communitySchema = z.object({
     .min(1, "Email is required")
     .email("Invalid email address"),
   password: z.string().optional(),
+  adminUsername: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((val) => !val || val.trim().length === 0 || usernamePattern.test(val.trim()), {
+      message: "Username must be 3-30 characters (letters, numbers, dots, hyphens or underscores)",
+    }),
   adminEmail: z.string()
     .email("Invalid email address")
     .optional()
@@ -104,6 +114,7 @@ export function CommunityManagement() {
       phone: "",
       email: "",
       password: "",
+      adminUsername: "",
       adminEmail: "",
       adminPassword: "",
     },
@@ -120,7 +131,15 @@ export function CommunityManagement() {
         });
         throw new Error("Password is required for new communities");
       }
-      return api.createCommunity(data);
+      const trimmedAdminUsername = data.adminUsername?.trim() || "";
+      const trimmedAdminEmail = data.adminEmail?.trim() || "";
+      const payload = {
+        ...data,
+        adminUsername: trimmedAdminUsername.length > 0 ? trimmedAdminUsername : null,
+        adminEmail: trimmedAdminEmail.length > 0 ? trimmedAdminEmail : null,
+        adminPassword: data.adminPassword?.trim() && data.adminPassword.trim().length > 0 ? data.adminPassword.trim() : undefined,
+      };
+      return api.createCommunity(payload as any);
     },
     onSuccess: () => {
       console.log("Community created successfully");
@@ -154,6 +173,14 @@ export function CommunityManagement() {
       if (data.adminPassword === "***" || !data.adminPassword) {
         delete updateData.adminPassword;
       }
+      if (data.adminUsername !== undefined) {
+        const trimmed = data.adminUsername?.trim() || "";
+        updateData.adminUsername = trimmed.length > 0 ? trimmed : null;
+      }
+      if (data.adminEmail !== undefined) {
+        const trimmed = data.adminEmail?.trim() || "";
+        updateData.adminEmail = trimmed.length > 0 ? trimmed : null;
+      }
       return api.updateCommunity(id, updateData);
     },
     onSuccess: () => {
@@ -183,6 +210,7 @@ export function CommunityManagement() {
         phone: community.phone,
         email: community.email,
         password: "***", // Mask existing password
+        adminUsername: community.adminUsername ?? "",
         adminEmail: community.adminEmail ?? "",
         adminPassword: community.adminPassword ? "***" : "", // Mask existing password
       });
@@ -209,12 +237,30 @@ export function CommunityManagement() {
       }
     }
     
+    const trimmedAdminUsername = data.adminUsername?.trim() || "";
+    const adminUsernameChanged = trimmedAdminUsername !== (editingCommunity?.adminUsername ?? "");
+    if (trimmedAdminUsername && (!data.adminPassword || data.adminPassword === "***" || data.adminPassword.trim() === "")) {
+      if (!editingCommunity || adminUsernameChanged) {
+        form.setError("adminPassword", {
+          type: "manual",
+          message: "Admin password is required when assigning a username",
+        });
+        return;
+      }
+    }
+
+    const submission: CommunityFormData = {
+      ...data,
+      adminUsername: trimmedAdminUsername,
+      adminEmail: data.adminEmail?.trim() || "",
+    };
+
     if (editingCommunity) {
       console.log("Calling update mutation");
-      updateMutation.mutate({ id: editingCommunity.id, data });
+      updateMutation.mutate({ id: editingCommunity.id, data: submission });
     } else {
       console.log("Calling create mutation");
-      createMutation.mutate(data);
+      createMutation.mutate(submission);
     }
   };
 
@@ -333,13 +379,19 @@ export function CommunityManagement() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Communities Management</h2>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Community
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <ExportButton
+            onExportCSV={() => api.exportCommunities("csv")}
+            onExportExcel={() => api.exportCommunities("excel")}
+            disabled={false}
+          />
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => handleOpenDialog()}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Community
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
@@ -414,6 +466,22 @@ export function CommunityManagement() {
                 <Label className="text-base font-semibold">Community Admin Credentials</Label>
                 <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
+                <Label htmlFor="adminUsername">Admin Username</Label>
+                <Input
+                  id="adminUsername"
+                  {...form.register("adminUsername")}
+                  placeholder="community_admin"
+                  spellCheck={false}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Usernames can contain letters, numbers, dots, hyphens or underscores.
+                </p>
+                {form.formState.errors.adminUsername && (
+                  <p className="text-sm text-destructive">{form.formState.errors.adminUsername.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
                     <Label htmlFor="adminEmail">Admin Email</Label>
                     <Input id="adminEmail" type="email" {...form.register("adminEmail")} placeholder="admin@community.com" />
                     {form.formState.errors.adminEmail && (
@@ -459,6 +527,7 @@ export function CommunityManagement() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="rounded-md border">

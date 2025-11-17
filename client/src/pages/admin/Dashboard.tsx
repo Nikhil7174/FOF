@@ -10,6 +10,7 @@ import { UserManagement } from "@/components/admin/UserManagement";
 import { VolunteerManagement } from "@/components/admin/VolunteerManagement";
 import { CalendarManagement } from "@/components/admin/CalendarManagement";
 import { TournamentFormatsManagement } from "@/components/admin/TournamentFormatsManagement";
+import { SettingsManagement } from "@/components/admin/SettingsManagement";
 import { useAuth } from "@/hooks/api/useAuth";
 
 export default function AdminDashboard() {
@@ -57,10 +58,11 @@ export default function AdminDashboard() {
             <TabsTrigger value="overview" className="justify-start">Overview</TabsTrigger>
             <TabsTrigger value="sports" className="justify-start">Sports</TabsTrigger>
             <TabsTrigger value="communities" className="justify-start">Communities</TabsTrigger>
-            <TabsTrigger value="calendar" className="justify-start">Calendar</TabsTrigger>
-            <TabsTrigger value="formats" className="justify-start">Tournament Formats</TabsTrigger>
             <TabsTrigger value="users" className="justify-start">Users</TabsTrigger>
             <TabsTrigger value="volunteers" className="justify-start">Volunteers</TabsTrigger>
+            <TabsTrigger value="calendar" className="justify-start">Calendar</TabsTrigger>
+            <TabsTrigger value="formats" className="justify-start">Tournament Formats</TabsTrigger>
+            <TabsTrigger value="settings" className="justify-start">Settings</TabsTrigger>
           </TabsList>
 
           <div className="flex-1 space-y-6">
@@ -94,6 +96,10 @@ export default function AdminDashboard() {
               <UserManagement />
             </TabsContent>
 
+            <TabsContent value="volunteers">
+              <VolunteerManagement />
+            </TabsContent>
+
             <TabsContent value="calendar">
               <CalendarManagement />
             </TabsContent>
@@ -102,8 +108,8 @@ export default function AdminDashboard() {
               <TournamentFormatsManagement />
             </TabsContent>
 
-            <TabsContent value="volunteers">
-              <VolunteerManagement />
+            <TabsContent value="settings">
+              <SettingsManagement />
             </TabsContent>
           </div>
         </Tabs>

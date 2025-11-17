@@ -70,6 +70,8 @@ async function main() {
       contactPerson: "Ahmed Hassan",
       phone: "+254 712 111 111",
       email: "nairobi.central@fof.co.ke",
+      adminUsername: "commadmin1",
+      adminEmail: "commadmin1@fof.co.ke",
     },
   });
 
@@ -83,6 +85,8 @@ async function main() {
       contactPerson: "Jennifer Muthoni",
       phone: "+254 723 222 222",
       email: "westlands@fof.co.ke",
+      adminUsername: "commadmin2",
+      adminEmail: "commadmin2@fof.co.ke",
     },
   });
 
@@ -156,6 +160,8 @@ async function main() {
       active: true,
       type: SportType.team,
       requiresTeamName: true,
+      adminUsername: "footballadmin",
+      adminEmail: "football@fof.co.ke",
       rules: `**Football Rules - FOF 2026**
 
 1. Each match will consist of two 30-minute halves
@@ -183,6 +189,8 @@ async function main() {
       active: true,
       type: SportType.team,
       requiresTeamName: true,
+      adminUsername: "basketballadmin",
+      adminEmail: "basketball@fof.co.ke",
       rules: `**Basketball Rules - FOF 2026**
 
 1. Games consist of four 10-minute quarters
@@ -210,6 +218,8 @@ async function main() {
       active: true,
       type: SportType.individual,
       requiresTeamName: false,
+      adminUsername: "athleticsadmin",
+      adminEmail: "athletics@fof.co.ke",
       rules: `**Athletics Rules - FOF 2026**
 
 1. All events follow IAAF regulations
@@ -237,6 +247,8 @@ async function main() {
       active: true,
       type: SportType.individual,
       requiresTeamName: false,
+      adminUsername: "badmintonadmin",
+      adminEmail: "badminton@fof.co.ke",
       rules: `**Badminton Rules - FOF 2026**
 
 1. Best of 3 sets format
@@ -434,19 +446,6 @@ async function main() {
     },
   });
 
-  const volunteerPassword = await hashPassword("volunteer");
-  await prisma.user.upsert({
-    where: { id: "v1" },
-    update: {},
-    create: {
-      id: "v1",
-      username: "volunteer",
-      email: "volunteer@fof.co.ke",
-      password: volunteerPassword,
-      role: Role.volunteer,
-    },
-  });
-
   const userPassword = await hashPassword("user");
   await prisma.user.upsert({
     where: { id: "u2" },
@@ -529,7 +528,20 @@ async function main() {
   // Create volunteers
   const volunteers = [
     {
+      id: "volDemo",
+      username: "volunteer",
+      firstName: "Demo",
+      lastName: "Volunteer",
+      gender: Gender.female,
+      dob: new Date("1998-01-01"),
+      email: "volunteer@fof.co.ke",
+      phone: "+254733000000",
+      departmentId: "d1",
+      sportId: "1",
+    },
+    {
       id: "vol1",
+      username: "grace_vol",
       firstName: "Grace",
       lastName: "Kariuki",
       gender: Gender.female,
@@ -541,6 +553,7 @@ async function main() {
     },
     {
       id: "vol2",
+      username: "hassan_vol",
       firstName: "Hassan",
       lastName: "Ali",
       gender: Gender.male,
@@ -552,6 +565,7 @@ async function main() {
     },
     {
       id: "vol3",
+      username: "linet_vol",
       firstName: "Linet",
       lastName: "Chebet",
       gender: Gender.female,
@@ -563,6 +577,7 @@ async function main() {
     },
     {
       id: "vol4",
+      username: "peter_vol",
       firstName: "Peter",
       lastName: "Mwangi",
       gender: Gender.male,
@@ -573,6 +588,7 @@ async function main() {
     },
     {
       id: "vol5",
+      username: "sarah_vol",
       firstName: "Sarah",
       lastName: "Wanjiku",
       gender: Gender.female,
@@ -583,6 +599,7 @@ async function main() {
     },
     {
       id: "vol6",
+      username: "david_vol",
       firstName: "David",
       lastName: "Ochieng",
       gender: Gender.male,
@@ -593,6 +610,7 @@ async function main() {
     },
     {
       id: "vol7",
+      username: "mary_vol",
       firstName: "Mary",
       lastName: "Njeri",
       gender: Gender.female,
@@ -603,6 +621,7 @@ async function main() {
     },
     {
       id: "vol8",
+      username: "james_vol",
       firstName: "James",
       lastName: "Kipchoge",
       gender: Gender.male,
@@ -613,6 +632,7 @@ async function main() {
     },
     {
       id: "vol9",
+      username: "ruth_vol",
       firstName: "Ruth",
       lastName: "Kamau",
       gender: Gender.female,
@@ -623,6 +643,7 @@ async function main() {
     },
     {
       id: "vol10",
+      username: "michael_vol",
       firstName: "Michael",
       lastName: "Mutua",
       gender: Gender.male,
@@ -633,11 +654,35 @@ async function main() {
     },
   ];
 
+  const volunteerSeedPassword = await hashPassword("volunteer");
+
   for (const vol of volunteers) {
+    const { username, ...volunteerData } = vol;
+    const volunteerUser = await prisma.user.upsert({
+      where: { username },
+      update: {
+        email: volunteerData.email,
+        password: volunteerSeedPassword,
+        role: Role.volunteer,
+      },
+      create: {
+        username,
+        email: volunteerData.email,
+        password: volunteerSeedPassword,
+        role: Role.volunteer,
+      },
+    });
+
     await prisma.volunteer.upsert({
-      where: { id: vol.id },
-      update: {},
-      create: vol,
+      where: { id: volunteerData.id },
+      update: {
+        ...volunteerData,
+        userId: volunteerUser.id,
+      },
+      create: {
+        ...volunteerData,
+        userId: volunteerUser.id,
+      },
     });
   }
 
@@ -645,7 +690,7 @@ async function main() {
   const nikhilPassword = await hashPassword("password123");
   const nikhilUsername = "nikhilkumar_" + Date.now().toString().slice(-6);
   
-  await prisma.user.upsert({
+  const nikhilUser = await prisma.user.upsert({
     where: { email: "nikhilkumarsingh7174@gmail.com" },
     update: {
       username: nikhilUsername,
@@ -670,6 +715,7 @@ async function main() {
       dob: new Date("1995-01-01"),
       phone: "+254 700 000 000",
       sportId: "1",
+      userId: nikhilUser.id,
     },
     create: {
       firstName: "Nikhil",
@@ -679,6 +725,7 @@ async function main() {
       email: "nikhilkumarsingh7174@gmail.com",
       phone: "+254 700 000 000",
       sportId: "1", // Assigned to Football
+      userId: nikhilUser.id,
     },
   });
 

@@ -6,7 +6,8 @@ import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
 const router = Router();
 
 const updateSettingsSchema = z.object({
-  ageCalculatorDate: z.string().or(z.date()),
+  ageCalculatorDate: z.string().or(z.date()).optional(),
+  profileFreezeDate: z.string().or(z.date()).nullable().optional(),
 });
 
 // Get settings
@@ -19,6 +20,7 @@ router.get("/", authenticate, async (req: AuthRequest, res: Response) => {
       settings = await prisma.settings.create({
         data: {
           ageCalculatorDate: new Date("2026-11-01"),
+          profileFreezeDate: null,
         },
       });
     }
@@ -36,18 +38,33 @@ router.patch("/", authenticate, requireRole("admin"), async (req: AuthRequest, r
 
     let settings = await prisma.settings.findFirst();
 
-    const ageCalculatorDate = typeof data.ageCalculatorDate === "string" 
-      ? new Date(data.ageCalculatorDate) 
-      : data.ageCalculatorDate;
+    const updateData: any = {};
+    
+    if (data.ageCalculatorDate !== undefined) {
+      updateData.ageCalculatorDate = typeof data.ageCalculatorDate === "string" 
+        ? new Date(data.ageCalculatorDate) 
+        : data.ageCalculatorDate;
+    }
+    
+    if (data.profileFreezeDate !== undefined) {
+      updateData.profileFreezeDate = data.profileFreezeDate === null || data.profileFreezeDate === "" 
+        ? null 
+        : (typeof data.profileFreezeDate === "string" 
+          ? new Date(data.profileFreezeDate) 
+          : data.profileFreezeDate);
+    }
 
     if (settings) {
       settings = await prisma.settings.update({
         where: { id: settings.id },
-        data: { ageCalculatorDate },
+        data: updateData,
       });
     } else {
       settings = await prisma.settings.create({
-        data: { ageCalculatorDate },
+        data: {
+          ageCalculatorDate: updateData.ageCalculatorDate || new Date("2026-11-01"),
+          profileFreezeDate: updateData.profileFreezeDate || null,
+        },
       });
     }
 

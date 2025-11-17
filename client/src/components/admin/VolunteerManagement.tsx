@@ -15,6 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, ChevronsUpDown } from "lucide-react";
+import { ExportButton } from "@/components/ui/export-button";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -126,13 +127,19 @@ export function VolunteerManagement() {
             />
           </div>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleOpenDialog} variant="default">
-              <Plus className="mr-2 h-4 w-4" />
-              Assign Volunteer
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <ExportButton
+            onExportCSV={() => api.exportVolunteers("csv")}
+            onExportExcel={() => api.exportVolunteers("excel")}
+            disabled={isLoadingVolunteers}
+          />
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleOpenDialog} variant="default">
+                <Plus className="mr-2 h-4 w-4" />
+                Assign Volunteer
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Assign Volunteers to Sport</DialogTitle>
@@ -251,6 +258,7 @@ export function VolunteerManagement() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card>

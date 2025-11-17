@@ -60,14 +60,20 @@ export function SportSelect({
   }, [sports]);
 
   // Get all sports for display (parent and children)
+  // If parent has children, only show children. If parent has no children, show parent.
   const allSportsForDisplay = React.useMemo(() => {
     const result: Array<{ id: string; name: string; isChild: boolean; parentName?: string }> = [];
     sportsWithChildren.forEach(({ parent, children }) => {
-      result.push({ id: parent.id, name: parent.name, isChild: false });
-      if (showAllSports) {
-        children.forEach((child) => {
-          result.push({ id: child.id, name: child.name, isChild: true, parentName: parent.name });
-        });
+      if (children.length > 0) {
+        // Parent has children - only show children
+        if (showAllSports) {
+          children.forEach((child) => {
+            result.push({ id: child.id, name: child.name, isChild: true, parentName: parent.name });
+          });
+        }
+      } else {
+        // Parent has no children - show parent
+        result.push({ id: parent.id, name: parent.name, isChild: false });
       }
     });
     return result;
@@ -126,10 +132,61 @@ export function SportSelect({
               </CommandGroup>
             )}
             {showAllSports ? (
-              // Show parent and children without group headings
-              sportsWithChildren.map(({ parent, children }) => (
-                <React.Fragment key={parent.id}>
+              // Show children if parent has children, otherwise show parent
+              sportsWithChildren.map(({ parent, children }) => {
+                if (children.length > 0) {
+                  // Parent has children - only show children
+                  return (
+                    <CommandGroup key={parent.id} heading={parent.name}>
+                      {children.map((child) => (
+                        <CommandItem
+                          key={child.id}
+                          value={`${parent.name} ${child.name}`}
+                          onSelect={() => {
+                            onValueChange(child.id);
+                            setOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              value === child.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {child.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  );
+                } else {
+                  // Parent has no children - show parent
+                  return (
+                    <CommandItem
+                      key={parent.id}
+                      value={parent.name}
+                      onSelect={() => {
+                        onValueChange(parent.id);
+                        setOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          value === parent.id ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {parent.name}
+                    </CommandItem>
+                  );
+                }
+              })
+            ) : (
+              // Show only parent sports (without children)
+              sportsWithChildren
+                .filter(({ children }) => children.length === 0)
+                .map(({ parent }) => (
                   <CommandItem
+                    key={parent.id}
                     value={parent.name}
                     onSelect={() => {
                       onValueChange(parent.id);
@@ -144,46 +201,7 @@ export function SportSelect({
                     />
                     {parent.name}
                   </CommandItem>
-                  {children.map((child) => (
-                    <CommandItem
-                      key={child.id}
-                      value={`${parent.name} ${child.name}`}
-                      onSelect={() => {
-                        onValueChange(child.id);
-                        setOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          value === child.id ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      <span className="ml-4">{child.name}</span>
-                    </CommandItem>
-                  ))}
-                </React.Fragment>
-              ))
-            ) : (
-              // Show only parent sports
-              sportsWithChildren.map(({ parent }) => (
-                <CommandItem
-                  key={parent.id}
-                  value={parent.name}
-                  onSelect={() => {
-                    onValueChange(parent.id);
-                    setOpen(false);
-                  }}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value === parent.id ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  {parent.name}
-                </CommandItem>
-              ))
+                ))
             )}
           </CommandList>
         </Command>

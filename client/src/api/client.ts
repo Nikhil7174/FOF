@@ -3,7 +3,42 @@
 // Import types from shared types file
 import type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry } from "@/types";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://fof-klcd.onrender.com/api";
+// const API_BASE_URL = import.meta.env.VITE_API_URL || "https://fof-klcd.onrender.com/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+
+export interface CreateParticipantInput {
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  gender: "male" | "female";
+  dob: string;
+  email: string;
+  username: string;
+  phone: string;
+  password: string;
+  communityId: string;
+  nextOfKin: {
+    firstName: string;
+    middleName?: string;
+    lastName: string;
+    phone: string;
+  };
+  sports: string[];
+  teamName?: string;
+}
+
+export interface CreateVolunteerInput {
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  gender: "male" | "female";
+  dob: string;
+  email: string;
+  username: string;
+  phone: string;
+  password: string;
+  sportId?: string;
+}
 
 // Get auth token from localStorage
 function getToken(): string | null {
@@ -26,9 +61,9 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getToken();
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...options.headers,
+    ...(options.headers as Record<string, string> || {}),
   };
 
   if (token) {
@@ -118,31 +153,11 @@ export const api = {
     return response.user;
   },
 
-  async sportsAdminLogin(email: string, password: string, sportId: string): Promise<User> {
-    const response = await request<{ user: User; token: string }>("/auth/sports-admin/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password, sportId }),
-    });
-    setToken(response.token);
-    return response.user;
-  },
-
-  async communityAdminLogin(email: string, password: string, communityId: string): Promise<User> {
-    const response = await request<{ user: User; token: string }>("/auth/community-admin/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password, communityId }),
-    });
-    setToken(response.token);
-    return response.user;
-  },
-
-  async volunteerLogin(email: string, password: string): Promise<User> {
-    const response = await request<{ user: User; token: string }>("/auth/volunteer/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-    setToken(response.token);
-    return response.user;
+  async checkUsernameAvailability(username: string): Promise<boolean> {
+    const response = await request<{ available: boolean }>(
+      `/auth/username-availability?username=${encodeURIComponent(username)}`
+    );
+    return response.available;
   },
 
   // Participants
@@ -150,9 +165,7 @@ export const api = {
     return request<Participant[]>("/participants");
   },
 
-  async createParticipant(
-    input: Omit<Participant, "id" | "status" | "createdAt" | "sports" | "getSportIds"> & { sports: string[] }
-  ): Promise<Participant> {
+  async createParticipant(input: CreateParticipantInput): Promise<Participant> {
     return request<Participant>("/participants", {
       method: "POST",
       body: JSON.stringify(input),
@@ -186,6 +199,23 @@ export const api = {
       return null;
     }
   },
+  async updateMyVolunteerProfile(data: {
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    phone?: string;
+  }): Promise<VolunteerEntry> {
+    return request<VolunteerEntry>("/volunteers/me", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  },
+  async updateMyVolunteerSport(sportId: string | null): Promise<VolunteerEntry> {
+    return request<VolunteerEntry>("/volunteers/me/sport", {
+      method: "PATCH",
+      body: JSON.stringify({ sportId }),
+    });
+  },
 
   async updateParticipantProfile(data: {
     firstName?: string;
@@ -215,7 +245,7 @@ export const api = {
 
   // Volunteers
   async createVolunteer(
-    input: Omit<VolunteerEntry, "id" | "createdAt"> & { password: string }
+    input: CreateVolunteerInput
   ): Promise<VolunteerEntry> {
     return request<VolunteerEntry>("/volunteers", {
       method: "POST",
@@ -351,6 +381,12 @@ export const api = {
   // Settings
   async getSettings(): Promise<SettingsRecord> {
     return request<SettingsRecord>("/settings");
+  },
+  async updateSettings(data: { ageCalculatorDate?: string | Date; profileFreezeDate?: string | Date | null }): Promise<SettingsRecord> {
+    return request<SettingsRecord>("/settings", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
   },
 
   // Email
@@ -553,6 +589,111 @@ export const api = {
   async deleteLeaderboardEntry(id: string): Promise<boolean> {
     await request(`/leaderboard/${id}`, { method: "DELETE" });
     return true;
+  },
+
+  // Export functions
+  async exportUsers(format: "csv" | "excel"): Promise<void> {
+    const token = getToken();
+    const url = `${API_BASE_URL}/users/export/${format}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) throw new Error("Export failed");
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `users.${format === "csv" ? "csv" : "xlsx"}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(a);
+  },
+
+  async exportParticipants(format: "csv" | "excel"): Promise<void> {
+    const token = getToken();
+    const url = `${API_BASE_URL}/participants/export/${format}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) throw new Error("Export failed");
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    const contentDisposition = response.headers.get("content-disposition");
+    const filename = contentDisposition
+      ? contentDisposition.split("filename=")[1]?.replace(/"/g, "") || `participants.${format === "csv" ? "csv" : "xlsx"}`
+      : `participants.${format === "csv" ? "csv" : "xlsx"}`;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(a);
+  },
+
+  async exportVolunteers(format: "csv" | "excel"): Promise<void> {
+    const token = getToken();
+    const url = `${API_BASE_URL}/volunteers/export/${format}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) throw new Error("Export failed");
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `volunteers.${format === "csv" ? "csv" : "xlsx"}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(a);
+  },
+
+  async exportSports(format: "csv" | "excel"): Promise<void> {
+    const token = getToken();
+    const url = `${API_BASE_URL}/sports/export/${format}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) throw new Error("Export failed");
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `sports.${format === "csv" ? "csv" : "xlsx"}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(a);
+  },
+
+  async exportCommunities(format: "csv" | "excel"): Promise<void> {
+    const token = getToken();
+    const url = `${API_BASE_URL}/communities/export/${format}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) throw new Error("Export failed");
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `communities.${format === "csv" ? "csv" : "xlsx"}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(a);
   },
 };
 
