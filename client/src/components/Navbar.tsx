@@ -3,10 +3,22 @@ import { Button } from "@/components/ui/button";
 import { Trophy, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/api/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/api";
 
 export const Navbar = () => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Fetch settings for site title and icon
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: api.getSettings,
+    retry: 1,
+  });
+
+  const siteTitle = settings?.siteTitle || "FOF 2026";
+  const siteIconUrl = settings?.siteIconUrl;
 
   const navLinks = [
     { to: "/", label: "Home" },
@@ -26,10 +38,12 @@ export const Navbar = () => {
           {/* Left: Brand */}
           <div className="flex items-center justify-start">
             <Link to="/" className="flex items-center gap-2 font-bold text-xl">
-              <div className="bg-gradient-hero p-2 rounded-lg">
-                <Trophy className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <span className="hidden sm:inline">FOF 2026</span>
+              {siteIconUrl ? (
+                <img src={siteIconUrl} alt="Site Icon" className="h-10 w-10 object-contain" />
+              ) : (
+                <Trophy className="h-6 w-6 text-primary" />
+              )}
+              <span className="hidden sm:inline">{siteTitle}</span>
             </Link>
           </div>
 

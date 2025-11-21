@@ -33,6 +33,7 @@ export interface Participant {
   status: "pending" | "accepted" | "rejected";
   pendingSports?: string[] | null;
   teamName?: string;
+  notes?: string | null;
   createdAt: string;
   // Helper to get sport IDs array
   getSportIds?: () => string[];
@@ -71,6 +72,7 @@ export interface SportRecord {
   ageLimitMin?: number; // Alternative format
   ageLimitMax?: number; // Alternative format
   rules?: string;
+  notes?: string | null;
   adminUsername?: string | null;
   adminEmail?: string | null;
   adminPassword?: string | null;
@@ -107,6 +109,12 @@ export interface SettingsRecord {
   id: string;
   ageCalculatorDate?: string | null;
   profileFreezeDate?: string | null;
+  siteTitle?: string | null;
+  siteIconUrl?: string | null;
+  heroImageUrl?: string | null;
+  heroTitle?: string | null;
+  heroSubtitle?: string | null;
+  heroDescription?: string | null;
   updatedAt: string;
 }
 

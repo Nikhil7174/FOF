@@ -3,8 +3,7 @@
 // Import types from shared types file
 import type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry } from "@/types";
 
-// const API_BASE_URL = import.meta.env.VITE_API_URL || "https://fof-klcd.onrender.com/api";
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const API_BASE_URL =  "http://localhost:3000/api";
 
 export interface CreateParticipantInput {
   firstName: string;
@@ -23,8 +22,9 @@ export interface CreateParticipantInput {
     lastName: string;
     phone: string;
   };
-  sports: string[];
+  sports: Array<string | { sportId: string; notes?: string | null }>;
   teamName?: string;
+  notes?: string;
 }
 
 export interface CreateVolunteerInput {
@@ -229,6 +229,7 @@ export const api = {
       phone: string;
     };
     teamName?: string;
+    notes?: string | null;
   }): Promise<Participant> {
     return request<Participant>("/participants/me", {
       method: "PATCH",
@@ -236,10 +237,10 @@ export const api = {
     });
   },
 
-  async updateParticipantSports(sportIds: string[]): Promise<Participant> {
+  async updateParticipantSports(sports: Array<string | { sportId: string; notes?: string | null }>): Promise<Participant> {
     return request<Participant>("/participants/me/sports", {
       method: "PATCH",
-      body: JSON.stringify({ sportIds }),
+      body: JSON.stringify({ sports }),
     });
   },
 
@@ -382,11 +383,55 @@ export const api = {
   async getSettings(): Promise<SettingsRecord> {
     return request<SettingsRecord>("/settings");
   },
-  async updateSettings(data: { ageCalculatorDate?: string | Date; profileFreezeDate?: string | Date | null }): Promise<SettingsRecord> {
+  async updateSettings(data: { 
+    ageCalculatorDate?: string | Date; 
+    profileFreezeDate?: string | Date | null;
+    siteTitle?: string | null;
+    siteIconUrl?: string | null;
+    heroImageUrl?: string | null;
+    heroTitle?: string | null;
+    heroSubtitle?: string | null;
+    heroDescription?: string | null;
+  }): Promise<SettingsRecord> {
     return request<SettingsRecord>("/settings", {
       method: "PATCH",
       body: JSON.stringify(data),
     });
+  },
+
+  async uploadImage(file: File): Promise<{ url: string; filename: string }> {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const url = `${API_BASE_URL}/settings/upload-image`;
+    console.log(`[API] POST ${url} (file upload)`);
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      console.log(`[API] Response status: ${response.status} ${response.statusText}`);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: response.statusText }));
+        console.error(`[API] Error response:`, error);
+        const errorMessage = error.error || error.message || `HTTP ${response.status}`;
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      console.log(`[API] Success:`, data);
+      return data;
+    } catch (error: any) {
+      console.error(`[API] Request failed:`, error);
+      throw error;
+    }
   },
 
   // Email

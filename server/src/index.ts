@@ -3,6 +3,8 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
+import fs from "fs";
 import { PrismaClient } from "@prisma/client";
 import { normalizeDatabaseUrl } from "./utils/database";
 import authRoutes from "./routes/auth";
@@ -142,6 +144,15 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
  */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+/**
+ * Static file serving for uploaded images
+ */
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use("/uploads", express.static(uploadsDir));
 
 /**
  * Health check

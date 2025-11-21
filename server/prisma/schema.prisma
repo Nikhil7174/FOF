@@ -77,6 +77,7 @@ model Participant {
   nextOfKin     Json // { firstName, middleName?, lastName, phone }
   status        ParticipantStatus @default(pending)
   teamName      String?
+  notes         String?
   pendingSports Json?            // Array of sport IDs for pending approval
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
@@ -93,6 +94,7 @@ model ParticipantSport {
   id            String      @id @default(uuid())
   participantId String
   sportId       String
+  notes         String?
   createdAt     DateTime    @default(now())
 
   participant Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
@@ -167,6 +169,7 @@ model Sport {
   ageLimitMax    Int?
   convenorId     String?   @unique
   rules          String?
+  notes          String?
   adminUsername  String?   @unique
   adminEmail     String?   @unique
   adminPassword  String?
@@ -234,6 +237,12 @@ model Settings {
   id                String    @id @default(uuid())
   ageCalculatorDate DateTime
   profileFreezeDate DateTime?
+  siteTitle         String?
+  siteIconUrl       String?
+  heroImageUrl      String?
+  heroTitle         String?
+  heroSubtitle      String?
+  heroDescription   String?
   updatedAt         DateTime  @updatedAt
 }
 
