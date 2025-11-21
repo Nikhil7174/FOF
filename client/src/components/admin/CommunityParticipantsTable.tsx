@@ -145,6 +145,7 @@ export function CommunityParticipantsTable() {
                 <TableHead>Phone</TableHead>
                 <TableHead>Sports</TableHead>
                 <TableHead>Team Name</TableHead>
+                <TableHead>Notes</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -158,13 +159,14 @@ export function CommunityParticipantsTable() {
                     <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : communityParticipants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
                     No participants registered for this community yet.
                   </TableCell>
                 </TableRow>
@@ -202,6 +204,13 @@ export function CommunityParticipantsTable() {
                         </div>
                       </TableCell>
                       <TableCell>{p.teamName || "-"}</TableCell>
+                      <TableCell className="max-w-xs">
+                        {p.notes ? (
+                          <p className="text-sm text-muted-foreground break-words whitespace-pre-wrap">{p.notes}</p>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <span
                           className={`px-2 py-1 rounded text-xs ${

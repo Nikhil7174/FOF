@@ -10,6 +10,13 @@ import { useMemo } from "react";
 export const Hero = () => {
   const { user } = useAuth();
   
+  // Fetch settings for hero customization
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: api.getSettings,
+    retry: 1,
+  });
+  
   // Fetch sports count
   const { data: sports = [] } = useQuery({
     queryKey: ["sports"],
@@ -61,12 +68,18 @@ export const Hero = () => {
   // Count only parent sports (exclude sub-categories) that are active
   const activeSportsCount = sports.filter((s: any) => !s.parentId && s.active !== false).length;
   
+  // Use settings if available, otherwise use defaults
+  const heroImageUrl = settings?.heroImageUrl || heroImage;
+  const heroTitleText = settings?.heroTitle || "Welcome to FOF 2026";
+  const heroSubtitleText = settings?.heroSubtitle || "A Festival Of Friendship";
+  const heroDescriptionText = settings?.heroDescription || "Where different communities participate and compete in various sports and events. Join us in celebrating unity, sportsmanship, and community spirit.";
+  
   return (
     <section className="relative min-h-[600px] flex items-center overflow-hidden">
       {/* Background Image with Overlay */}
       <div 
         className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${heroImage})` }}
+        style={{ backgroundImage: `url(${heroImageUrl})` }}
       >
         <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/80 to-background/60" />
       </div>
@@ -75,17 +88,21 @@ export const Hero = () => {
       <div className="container relative z-10 mx-auto px-4 py-20">
         <div className="max-w-2xl animate-fade-in">
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
-            Welcome to{" "}
-            <span className="bg-gradient-hero bg-clip-text text-transparent">
-              FOF 2026
-            </span>
+            {heroTitleText.split(/(FOF|2026)/).map((part, i) => 
+              part === "FOF" || part === "2026" ? (
+                <span key={i} className="bg-gradient-hero bg-clip-text text-transparent">
+                  {part}
+                </span>
+              ) : (
+                <span key={i}>{part}</span>
+              )
+            )}
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground mb-4 font-semibold">
-            A Festival Of Friendship
+            {heroSubtitleText}
           </p>
           <p className="text-lg text-muted-foreground mb-8 max-w-xl">
-            Where different communities participate and compete in various sports and events. 
-            Join us in celebrating unity, sportsmanship, and community spirit.
+            {heroDescriptionText}
           </p>
 
           {!user && (

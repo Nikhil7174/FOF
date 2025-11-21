@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -37,6 +38,7 @@ export default function UserDashboard() {
       phone: "",
     },
     teamName: "",
+    notes: "",
   });
 
   type VolunteerWithSport = VolunteerEntry & { sport?: SportRecord | null };
@@ -67,7 +69,7 @@ export default function UserDashboard() {
     }
   }, [frozen, isEditingSports]);
 
-  const { data: participant, isLoading: participantLoading } = useQuery<Participant | null>({
+  const { data: participant, isLoading: participantLoading, isFetching: participantFetching } = useQuery<Participant | null>({
     queryKey: ["myParticipant"],
     queryFn: api.getMyParticipant,
     enabled: user?.role === "user",
@@ -76,13 +78,13 @@ export default function UserDashboard() {
     !!participant?.pendingSports && Array.isArray(participant.pendingSports) && participant.pendingSports.length > 0;
 
 
-  const { data: volunteer, isLoading: volunteerLoading } = useQuery<VolunteerWithSport | null>({
+  const { data: volunteer, isLoading: volunteerLoading, isFetching: volunteerFetching } = useQuery<VolunteerWithSport | null>({
     queryKey: ["myVolunteer"],
     queryFn: api.getMyVolunteer,
     enabled: user?.role === "volunteer",
   });
 
-  const { data: sports = [], isLoading: sportsLoading } = useQuery({
+  const { data: sports = [], isLoading: sportsLoading, isFetching: sportsFetching } = useQuery({
     queryKey: ["sports"],
     queryFn: api.listSports,
   });
@@ -114,6 +116,7 @@ export default function UserDashboard() {
           phone: "",
         },
         teamName: participant.teamName || "",
+        notes: participant.notes || "",
       });
     } else if (volunteer) {
       // Initialize profile data for volunteers
@@ -129,6 +132,7 @@ export default function UserDashboard() {
           phone: "",
         },
         teamName: "",
+        notes: "",
       });
       
       // Initialize volunteer sport selection
@@ -259,6 +263,9 @@ export default function UserDashboard() {
     if (profileData.lastName?.trim()) cleanedData.lastName = profileData.lastName.trim();
     if (profileData.phone?.trim()) cleanedData.phone = profileData.phone.trim();
     if (profileData.teamName?.trim()) cleanedData.teamName = profileData.teamName.trim();
+    if (user?.role === "user" && profileData.notes !== undefined) {
+      cleanedData.notes = profileData.notes.trim();
+    }
     
     // Only include nextOfKin if at least one required field is present
     if (profileData.nextOfKin.firstName?.trim() || profileData.nextOfKin.lastName?.trim() || profileData.nextOfKin.phone?.trim()) {
@@ -371,49 +378,6 @@ export default function UserDashboard() {
     );
   }
 
-  // If user is registered but not yet accepted
-  if (
-    user.role === "user" &&
-    !participantLoading &&
-    participant &&
-    participant.status !== "accepted"
-  ) {
-    const isPending = participant.status === "pending";
-    return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="container mx-auto px-4 py-12">
-          <div className="max-w-2xl mx-auto text-center">
-            <Card className="shadow-card">
-              <CardHeader>
-                <div className="inline-flex items-center justify-center p-3 bg-gradient-hero rounded-full mb-4 mx-auto">
-                  <UserIcon className="h-8 w-8 text-primary-foreground" />
-                </div>
-                <CardTitle className="text-2xl">
-                  {isPending ? "Application Pending" : "Application Under Review"}
-                </CardTitle>
-                <CardDescription className="flex flex-col items-center gap-2">
-                  {getStatusBadge(participant.status)}
-                  <span>
-                    {isPending
-                      ? "Your participant registration has been received and is awaiting approval from the administrators."
-                      : "Your participant registration is not active. Please contact the administrators if you have questions about your status."}
-                  </span>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm text-muted-foreground">
-                <p>
-                  You will be notified once the review is complete. In the meantime, you can
-                  verify your details or reach out to support if you need assistance.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // If user is a volunteer but hasn't registered yet
   if (user.role === "volunteer" && !volunteerLoading && !volunteer) {
     return (
@@ -438,7 +402,13 @@ export default function UserDashboard() {
     );
   }
 
-  if ((user.role === "user" && participantLoading) || (user.role === "volunteer" && volunteerLoading) || sportsLoading) {
+  const isInitialFetching =
+    (user.role === "user" && (participantLoading || participantFetching)) ||
+    (user.role === "volunteer" && (volunteerLoading || volunteerFetching)) ||
+    sportsLoading ||
+    sportsFetching;
+
+  if (isInitialFetching) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
@@ -475,6 +445,32 @@ export default function UserDashboard() {
             {user.role === "volunteer" ? "Manage your volunteer profile" : "Manage your profile and sports registration"}
           </p>
         </div>
+
+        {participant &&
+          user.role === "user" &&
+          participant.status &&
+          participant.status !== "accepted" && (
+            <div className="mb-6 flex justify-center">
+              <Card className="w-full max-w-md border-secondary/40 bg-secondary/10 text-center">
+                <CardHeader className="space-y-3">
+                  <div className="inline-flex items-center justify-center p-3 bg-gradient-hero rounded-full mx-auto">
+                    <UserIcon className="h-8 w-8 text-primary-foreground" />
+                  </div>
+                  <CardTitle className="text-2xl">
+                    {participant.status === "pending" ? "Application Pending" : "Application Under Review"}
+                  </CardTitle>
+                  <CardDescription className="flex flex-col items-center gap-2">
+                    {getStatusBadge(participant.status)}
+                    <span className="text-base text-foreground">
+                      {participant.status === "pending"
+                        ? "Your participant registration has been received and is awaiting approval from the administrators."
+                        : "Your participant registration is not active. Please contact the administrators if you have questions about your status."}
+                    </span>
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </div>
+          )}
 
         <Tabs defaultValue="profile" className="space-y-4">
           <TabsList>
@@ -617,6 +613,24 @@ export default function UserDashboard() {
                   </div>
                 )}
 
+                {user.role === "user" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Notes (Optional)</Label>
+                    <Textarea
+                      id="notes"
+                      value={profileData.notes}
+                      onChange={(e) => handleProfileChange("notes", e.target.value)}
+                      disabled={frozen}
+                      placeholder="Share any additional information about your sports registration (injuries, preferences, availability, etc.)"
+                      className="min-h-[100px]"
+                      maxLength={500}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This note is visible to community administrators reviewing your registration.
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-3 pt-4 border-t">
                   <Button
                     variant="hero"
@@ -675,7 +689,7 @@ export default function UserDashboard() {
                 <CardContent>
                   {hasPendingSports && (
                     <div className="mb-4 p-4 border border-secondary rounded-lg bg-secondary/10">
-                      <p className="font-semibold text-secondary-foreground">Sports Update Pending Approval</p>
+                      <p className="font-semibold text-primary">Sports Update Pending Approval</p>
                       <p className="text-sm text-muted-foreground">
                         You’ve requested changes to your sports. A community admin will review and approve the update shortly.
                       </p>

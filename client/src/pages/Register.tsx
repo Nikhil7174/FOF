@@ -1,6 +1,7 @@
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,6 +18,7 @@ const usernamePattern = /^[a-zA-Z0-9_.-]{3,30}$/;
 export default function Register() {
   const { toast } = useToast();
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
+  const [sportNotes, setSportNotes] = useState<Record<string, string>>({});
   const [agreedToIndemnity, setAgreedToIndemnity] = useState(false);
   const [gender, setGender] = useState<string>("");
   const [communityId, setCommunityId] = useState<string>("");
@@ -36,6 +38,7 @@ export default function Register() {
   const [kinFirstName, setKinFirstName] = useState<string>("");
   const [kinLastName, setKinLastName] = useState<string>("");
   const [kinPhone, setKinPhone] = useState<string>("");
+  const [notes, setNotes] = useState<string>("");
   const navigate = useNavigate();
 
   // Auto-open sports section when all required fields are filled
@@ -54,13 +57,14 @@ export default function Register() {
       communityId &&
       kinFirstName.trim() &&
       kinLastName.trim() &&
-      kinPhone.trim();
+      kinPhone.trim() &&
+      notes.trim();
 
     // Auto-open sports section if all fields are filled and it's currently closed
     if (allFieldsFilled && !isSportsSectionOpen) {
       setIsSportsSectionOpen(true);
     }
-  }, [firstName, lastName, gender, dob, username, email, phone, password, confirmPassword, communityId, kinFirstName, kinLastName, kinPhone, isSportsSectionOpen]);
+  }, [firstName, lastName, gender, dob, username, email, phone, password, confirmPassword, communityId, kinFirstName, kinLastName, kinPhone, notes, isSportsSectionOpen]);
 
   useEffect(() => {
     const trimmed = username.trim();
@@ -205,7 +209,15 @@ export default function Register() {
       return;
     }
     
+    // Validate payment details (notes)
+    const trimmedNotes = notes.trim();
+    if (!trimmedNotes) {
+      toast({ title: "Payment Details Required", description: "Please provide payment details.", variant: "destructive" });
+      return;
+    }
+    
     const form = new FormData(e.currentTarget);
+
     const payload: CreateParticipantInput = {
       firstName: String(form.get("firstName") || ""),
       middleName: String(form.get("middleName") || ""),
@@ -223,7 +235,13 @@ export default function Register() {
         lastName: String(form.get("kinLastName") || ""),
         phone: String(form.get("kinPhone") || ""),
       },
-      sports: selectedSports.filter(sportId => sportId && sportId.trim() !== ""),
+      sports: selectedSports
+        .filter(sportId => sportId && sportId.trim() !== "")
+        .map(sportId => {
+          const notes = sportNotes[sportId]?.trim();
+          return notes ? { sportId, notes } : sportId;
+        }),
+      notes: trimmedNotes,
     };
     
     // Final validation: ensure we still have sports after filtering
@@ -299,9 +317,14 @@ export default function Register() {
     const sport = sports.find((s) => s.id === sportId);
     if (!sport) return;
 
-    // If deselecting, just remove it
+    // If deselecting, just remove it and its notes
     if (selectedSports.includes(sportId)) {
       setSelectedSports((prev) => prev.filter((id) => id !== sportId));
+      setSportNotes((prev) => {
+        const updated = { ...prev };
+        delete updated[sportId];
+        return updated;
+      });
       return;
     }
 
@@ -507,6 +530,25 @@ export default function Register() {
                   </div>
                 </div>
 
+                {/* Payment Details */}
+                <div className="pt-4 border-t">
+                  <Label htmlFor="notes">Payment Details *</Label>
+                  <Textarea
+                    id="notes"
+                    name="notes"
+                    placeholder="Please provide payment details (e.g., payment method, transaction ID, or payment confirmation details)."
+                    required
+                    disabled={isSubmitting}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="min-h-[100px]"
+                    maxLength={500}
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Up to 500 characters. Please provide your payment details for registration processing.
+                  </p>
+                </div>
+
                 {/* Sports Selection */}
                 <div className="pt-4 border-t">
                   <button
@@ -621,6 +663,35 @@ export default function Register() {
                                 })()}
                               </div>
                             )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {/* Notes for selected sports */}
+                  {selectedSports.length > 0 && (
+                    <div className="pt-4 border-t space-y-4">
+                      <h4 className="font-semibold text-sm">Notes for Selected Sports (Optional)</h4>
+                      {selectedSports.map((sportId) => {
+                        const sport = sports.find((s: any) => s.id === sportId);
+                        if (!sport) return null;
+                        const parent = sport.parentId ? sports.find((s: any) => s.id === sport.parentId) : null;
+                        const sportName = parent ? `${parent.name} - ${sport.name}` : sport.name;
+                        return (
+                          <div key={sportId} className="space-y-2">
+                            <Label htmlFor={`sport-notes-${sportId}`} className="text-sm">
+                              {sportName}
+                            </Label>
+                            <Textarea
+                              id={`sport-notes-${sportId}`}
+                              placeholder={`Add notes for ${sport.name} (optional)`}
+                              value={sportNotes[sportId] || ""}
+                              onChange={(e) => setSportNotes((prev) => ({ ...prev, [sportId]: e.target.value }))}
+                              disabled={isSubmitting}
+                              className="min-h-[80px]"
+                              maxLength={500}
+                            />
                           </div>
                         );
                       })}

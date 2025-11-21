@@ -3,7 +3,6 @@
 // Import types from shared types file
 import type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry } from "@/types";
 
-// const API_BASE_URL = import.meta.env.VITE_API_URL || "https://fof-klcd.onrender.com/api";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 export interface CreateParticipantInput {
@@ -25,6 +24,7 @@ export interface CreateParticipantInput {
   };
   sports: string[];
   teamName?: string;
+  notes?: string;
 }
 
 export interface CreateVolunteerInput {
@@ -229,6 +229,7 @@ export const api = {
       phone: string;
     };
     teamName?: string;
+    notes?: string | null;
   }): Promise<Participant> {
     return request<Participant>("/participants/me", {
       method: "PATCH",

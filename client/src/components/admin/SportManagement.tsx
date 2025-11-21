@@ -82,6 +82,7 @@ const sportSchema = z.object({
     z.number().optional()
   ),
   rules: z.string().optional(),
+  notes: z.string().max(500).optional().nullable(),
   convenorName: z.string().optional(),
   convenorPhone: z.string()
     .optional()
@@ -144,6 +145,7 @@ export function SportManagement() {
       ageLimitMin: "" as any,
       ageLimitMax: "" as any,
       rules: "",
+      notes: "",
       convenorName: "",
       convenorPhone: "",
       convenorEmail: "",
@@ -183,6 +185,7 @@ export function SportManagement() {
             }
           : null,
         rules: data.rules?.trim() || null,
+        notes: data.notes?.trim() && data.notes.trim().length > 0 ? data.notes.trim() : null,
       };
       const sport = await api.createSport({
         ...sportData,
@@ -264,6 +267,7 @@ export function SportManagement() {
       }
       
       if (data.rules !== undefined) sportData.rules = data.rules?.trim() || null;
+      if (data.notes !== undefined) sportData.notes = data.notes?.trim() && data.notes.trim().length > 0 ? data.notes.trim() : null;
       
       // Handle admin email and password
       if (data.adminEmail !== undefined) {
@@ -393,6 +397,7 @@ export function SportManagement() {
         ageLimitMin: (sport.ageLimit?.min !== undefined && sport.ageLimit?.min !== null) ? String(sport.ageLimit.min) : "" as any,
         ageLimitMax: (sport.ageLimit?.max !== undefined && sport.ageLimit?.max !== null) ? String(sport.ageLimit.max) : "" as any,
         rules: sport.rules ?? "",
+        notes: (sport as any).notes ?? "",
         convenorName: convenor?.name ?? "",
         convenorPhone: convenor?.phone ?? "",
         convenorEmail: convenor?.email ?? "",
@@ -659,6 +664,20 @@ export function SportManagement() {
                   placeholder="Enter sport rules (supports markdown)"
                   rows={6}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  {...form.register("notes")}
+                  placeholder="Add any additional notes about this sport (optional)"
+                  rows={4}
+                  maxLength={500}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Up to 500 characters. These notes are visible to participants when selecting sports.
+                </p>
               </div>
 
               <div className="space-y-4 border-t pt-4">

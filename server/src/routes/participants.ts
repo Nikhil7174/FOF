@@ -2,7 +2,7 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../index";
 import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
-import { ParticipantStatus, Gender, Role } from "@prisma/client";
+import { ParticipantStatus, Gender, Role, Prisma } from "@prisma/client";
 import { hashPassword } from "../utils/password";
 import { sendEmail } from "../utils/email";
 import { sendExport } from "../utils/export";
@@ -30,8 +30,17 @@ const createParticipantSchema = z.object({
     lastName: z.string().min(1),
     phone: z.string().min(1),
   }),
-  sports: z.array(z.string().min(1, "Invalid sport ID")).min(1, "At least one sport must be selected"),
+  sports: z.array(
+    z.union([
+      z.string().min(1, "Invalid sport ID"),
+      z.object({
+        sportId: z.string().min(1, "Invalid sport ID"),
+        notes: z.string().max(500).optional().nullable(),
+      }),
+    ])
+  ).min(1, "At least one sport must be selected"),
   teamName: z.string().optional(),
+  notes: z.string().min(1, "Payment details are required").max(500),
 });
 
 // List all participants (admin, community_admin, sports_admin)
@@ -124,10 +133,13 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     // Parse date
     const dob = typeof data.dob === "string" ? new Date(data.dob) : data.dob;
 
+    // Normalize sports array - extract sportIds for validation
+    const sportIds = data.sports.map((s: any) => typeof s === "string" ? s : s.sportId);
+
     // Check for incompatible sports
-    if (data.sports.length > 1) {
+    if (sportIds.length > 1) {
       const selectedSports = await prisma.sport.findMany({
-        where: { id: { in: data.sports } },
+        where: { id: { in: sportIds } },
         include: {
           incompatibleWith: {
             include: {
@@ -140,7 +152,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
       // Check if any selected sports are incompatible with each other
       for (const sport of selectedSports) {
         const incompatibleIds = sport.incompatibleWith.map((inc: any) => inc.incompatibleSportId);
-        const hasIncompatible = data.sports.some(
+        const hasIncompatible = sportIds.some(
           (selectedId) => selectedId !== sport.id && incompatibleIds.includes(selectedId)
         );
 
@@ -168,26 +180,38 @@ router.post("/", async (req: AuthRequest, res: Response) => {
 
     createdUserId = user.id;
 
-    // Create participant
-    const participant = await prisma.participant.create({
-      data: {
-        firstName: data.firstName,
-        middleName: data.middleName,
-        lastName: data.lastName,
-        gender: data.gender as Gender,
-        dob,
-        email: data.email,
-        phone: data.phone,
-        communityId: data.communityId,
-        nextOfKin: data.nextOfKin as any,
-        teamName: data.teamName,
-        userId: user.id,
-        sports: {
-          create: data.sports.map((sportId) => ({
-            sportId,
-          })),
-        },
+    const participantData: Prisma.ParticipantUncheckedCreateInput = {
+      firstName: data.firstName,
+      middleName: data.middleName,
+      lastName: data.lastName,
+      gender: data.gender as Gender,
+      dob,
+      email: data.email,
+      phone: data.phone,
+      communityId: data.communityId,
+      nextOfKin: data.nextOfKin as any,
+      teamName: data.teamName ?? null,
+      userId: user.id,
+      sports: {
+        create: data.sports.map((s: any) => {
+          if (typeof s === "string") {
+            return { sportId: s };
+          }
+          return {
+            sportId: s.sportId,
+            notes: s.notes && s.notes.trim().length > 0 ? s.notes.trim() : null,
+          };
+        }),
       },
+    };
+
+    if (data.notes !== undefined) {
+      (participantData as any).notes =
+        data.notes && data.notes.trim().length > 0 ? data.notes.trim() : null;
+    }
+
+    const participant = await prisma.participant.create({
+      data: participantData,
       include: {
         community: true,
         sports: {
@@ -261,20 +285,29 @@ router.patch("/:id/status", authenticate, requireRole("admin", "community_admin"
     let updateData: any = { status: status as ParticipantStatus };
     
     if (status === "accepted" && participant.pendingSports) {
-      const pendingSportIds = participant.pendingSports as string[];
+      const pendingSports = participant.pendingSports as any[];
       
       // Delete existing sports
       await prisma.participantSport.deleteMany({
         where: { participantId: participant.id },
       });
 
-      // Create new sports from pendingSports
-      if (pendingSportIds.length > 0) {
+      // Create new sports from pendingSports (handle both string IDs and objects)
+      if (pendingSports.length > 0) {
         await prisma.participantSport.createMany({
-          data: pendingSportIds.map((sportId: string) => ({
-            participantId: participant.id,
-            sportId,
-          })),
+          data: pendingSports.map((s: any) => {
+            if (typeof s === "string") {
+              return {
+                participantId: participant.id,
+                sportId: s,
+              };
+            }
+            return {
+              participantId: participant.id,
+              sportId: s.sportId,
+              notes: s.notes && s.notes.trim().length > 0 ? s.notes.trim() : null,
+            };
+          }),
         });
       }
 
@@ -412,6 +445,7 @@ router.patch("/me", authenticate, async (req: AuthRequest, res: Response) => {
         phone: z.string().min(1),
       }).optional(),
       teamName: z.string().optional().nullable(),
+      notes: z.string().max(500).optional().nullable(),
     });
 
     const data = updateSchema.parse(req.body);
@@ -431,6 +465,9 @@ router.patch("/me", authenticate, async (req: AuthRequest, res: Response) => {
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.nextOfKin !== undefined) updateData.nextOfKin = data.nextOfKin as any;
     if (data.teamName !== undefined) updateData.teamName = data.teamName;
+    if (data.notes !== undefined) {
+      updateData.notes = data.notes && data.notes.trim().length > 0 ? data.notes.trim() : null;
+    }
 
     const updated = await prisma.participant.update({
       where: { id: participant.id },
@@ -466,11 +503,14 @@ router.patch("/me/sports", authenticate, async (req: AuthRequest, res: Response)
       });
     }
 
-    const { sportIds } = req.body;
+    const { sports } = req.body;
 
-    if (!Array.isArray(sportIds)) {
-      return res.status(400).json({ error: "sportIds must be an array" });
+    if (!Array.isArray(sports)) {
+      return res.status(400).json({ error: "sports must be an array" });
     }
+
+    // Normalize sports array - extract sportIds for validation
+    const sportIds = sports.map((s: any) => typeof s === "string" ? s : s.sportId);
 
     const participant = await prisma.participant.findUnique({
       where: { userId: req.user!.id },
@@ -507,7 +547,7 @@ router.patch("/me/sports", authenticate, async (req: AuthRequest, res: Response)
     // If participant was previously accepted, set status to pending and store new sports in pendingSports
     // If already pending, just update pendingSports with the latest selection
     const updateData: any = {
-      pendingSports: sportIds,
+      pendingSports: sports, // Store full sports array with notes
     };
 
     // Only set status to pending if it was previously accepted
