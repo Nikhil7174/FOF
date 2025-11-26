@@ -190,3 +190,11 @@ export interface SportLeaderboardEntry {
   rank: number;
 }
 
+export interface BulkUploadResult {
+  successCount: number;
+  skippedCount: number;
+  errorCount: number;
+  skipped: Array<{ row: number; email: string; reason: string }>;
+  errors: Array<{ row: number; email?: string; errors: string[] }>;
+}
+

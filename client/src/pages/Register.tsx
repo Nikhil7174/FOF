@@ -18,7 +18,6 @@ const usernamePattern = /^[a-zA-Z0-9_.-]{3,30}$/;
 export default function Register() {
   const { toast } = useToast();
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
-  const [sportNotes, setSportNotes] = useState<Record<string, string>>({});
   const [agreedToIndemnity, setAgreedToIndemnity] = useState(false);
   const [gender, setGender] = useState<string>("");
   const [communityId, setCommunityId] = useState<string>("");
@@ -235,12 +234,7 @@ export default function Register() {
         lastName: String(form.get("kinLastName") || ""),
         phone: String(form.get("kinPhone") || ""),
       },
-      sports: selectedSports
-        .filter(sportId => sportId && sportId.trim() !== "")
-        .map(sportId => {
-          const notes = sportNotes[sportId]?.trim();
-          return notes ? { sportId, notes } : sportId;
-        }),
+      sports: selectedSports.filter((sportId) => sportId && sportId.trim() !== ""),
       notes: trimmedNotes,
     };
     
@@ -317,14 +311,9 @@ export default function Register() {
     const sport = sports.find((s) => s.id === sportId);
     if (!sport) return;
 
-    // If deselecting, just remove it and its notes
+    // If deselecting, just remove it
     if (selectedSports.includes(sportId)) {
       setSelectedSports((prev) => prev.filter((id) => id !== sportId));
-      setSportNotes((prev) => {
-        const updated = { ...prev };
-        delete updated[sportId];
-        return updated;
-      });
       return;
     }
 
@@ -669,34 +658,6 @@ export default function Register() {
                     </div>
                   )}
                   
-                  {/* Notes for selected sports */}
-                  {selectedSports.length > 0 && (
-                    <div className="pt-4 border-t space-y-4">
-                      <h4 className="font-semibold text-sm">Notes for Selected Sports (Optional)</h4>
-                      {selectedSports.map((sportId) => {
-                        const sport = sports.find((s: any) => s.id === sportId);
-                        if (!sport) return null;
-                        const parent = sport.parentId ? sports.find((s: any) => s.id === sport.parentId) : null;
-                        const sportName = parent ? `${parent.name} - ${sport.name}` : sport.name;
-                        return (
-                          <div key={sportId} className="space-y-2">
-                            <Label htmlFor={`sport-notes-${sportId}`} className="text-sm">
-                              {sportName}
-                            </Label>
-                            <Textarea
-                              id={`sport-notes-${sportId}`}
-                              placeholder={`Add notes for ${sport.name} (optional)`}
-                              value={sportNotes[sportId] || ""}
-                              onChange={(e) => setSportNotes((prev) => ({ ...prev, [sportId]: e.target.value }))}
-                              disabled={isSubmitting}
-                              className="min-h-[80px]"
-                              maxLength={500}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
 
                 {/* Indemnity */}
