@@ -3,7 +3,7 @@
 // Import types from shared types file
 import type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult } from "@/types";
 
-const API_BASE_URL =  "http://localhost:3000/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 export interface CreateParticipantInput {
   firstName: string;
