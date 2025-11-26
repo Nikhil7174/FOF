@@ -1,9 +1,9 @@
 // API client for backend server
 
 // Import types from shared types file
-import type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry } from "@/types";
+import type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult } from "@/types";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const API_BASE_URL =  "http://localhost:3000/api";
 
 export interface CreateParticipantInput {
   firstName: string;
@@ -102,7 +102,7 @@ async function request<T>(
 }
 
 // Re-export types for convenience
-export type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry };
+export type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult };
 
 // API methods
 export const api = {
@@ -695,6 +695,41 @@ export const api = {
     a.click();
     window.URL.revokeObjectURL(downloadUrl);
     document.body.removeChild(a);
+  },
+
+  async bulkUploadParticipants(file: File): Promise<BulkUploadResult> {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const url = `${API_BASE_URL}/participants/bulk-upload`;
+    console.log(`[API] POST ${url} (bulk upload)`);
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      console.log(`[API] Response status: ${response.status} ${response.statusText}`);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: response.statusText }));
+        console.error(`[API] Error response:`, error);
+        const errorMessage = error.error || error.message || `HTTP ${response.status}`;
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      console.log(`[API] Success:`, data);
+      return data;
+    } catch (error: any) {
+      console.error(`[API] Request failed:`, error);
+      throw error;
+    }
   },
 };
 
