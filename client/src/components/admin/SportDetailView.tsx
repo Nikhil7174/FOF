@@ -5,12 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Edit, Save, X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { getSportCounts } from "@/utils/sportParticipantCounts";
 
 const sportUpdateSchema = z.object({
   gender: z.enum(["male", "female", "mixed"]).optional().nullable(),
@@ -44,6 +46,26 @@ export function SportDetailView() {
     queryFn: () => user?.sportId ? api.getSport(user.sportId) : null,
     enabled: !!user?.sportId,
   });
+
+  const { data: sports = [] } = useQuery({
+    queryKey: ["sports"],
+    queryFn: api.listSports,
+    enabled: !!user?.sportId,
+  });
+
+  const { data: participantStats, isLoading: isLoadingStats } = useQuery({
+    queryKey: ["participantStats"],
+    queryFn: api.getParticipantStats,
+    enabled: !!user?.sportId,
+  });
+
+  const sportCounts = useMemo(() => {
+    if (!participantStats || !sport) {
+      return { registered: 0, accepted: 0 };
+    }
+    const includeChildren = !sport.parentId;
+    return getSportCounts(sport, sports, participantStats.bySportId, includeChildren);
+  }, [participantStats, sport, sports]);
 
   const form = useForm<SportUpdateFormData>({
     resolver: zodResolver(sportUpdateSchema),
@@ -105,7 +127,37 @@ export function SportDetailView() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto space-y-4">
+      {isLoadingStats ? (
+        <div className="grid grid-cols-2 gap-4 max-w-md">
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4 max-w-md">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-medium leading-snug min-h-[2.75rem]">
+                Registered Participants
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-3xl font-bold tabular-nums leading-none">{sportCounts.registered}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-medium leading-snug min-h-[2.75rem]">
+                Accepted Participants
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-3xl font-bold tabular-nums leading-none">{sportCounts.accepted}</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{sport.name} - Details</CardTitle>
