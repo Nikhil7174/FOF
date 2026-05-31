@@ -11,7 +11,8 @@ import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Loader2, ChevronDown } from "lucide-react";
 import { api, type CreateParticipantInput } from "@/api";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { getDisclaimerDisplayText, getTermsDisplayText } from "@/constants/legal";
 
 const usernamePattern = /^[a-zA-Z0-9_.-]{3,30}$/;
 
@@ -132,6 +133,9 @@ export default function Register() {
   };
 
   const ageReferenceDate = settings?.ageCalculatorDate ? new Date(settings.ageCalculatorDate) : null;
+  const termsText = getTermsDisplayText(settings);
+  const disclaimerText = getDisclaimerDisplayText(settings);
+  const hasCustomTerms = Boolean(settings?.termsAndConditionsText?.trim());
   const ageReferenceLabel = ageReferenceDate ? formatReferenceDate(settings?.ageCalculatorDate) : null;
 
   const calculateAge = (dobValue: string) => {
@@ -154,7 +158,7 @@ export default function Register() {
     const trimmedUsername = username.trim();
     
     if (!agreedToIndemnity) {
-      toast({ title: "Agreement Required", description: "Please agree to the indemnity form before submitting.", variant: "destructive" });
+      toast({ title: "Agreement Required", description: "Please agree to the terms and disclaimer before submitting.", variant: "destructive" });
       return;
     }
     
@@ -660,8 +664,21 @@ export default function Register() {
                   
                 </div>
 
-                {/* Indemnity */}
-                <div className="pt-4 border-t">
+                {/* Terms & disclaimer */}
+                <div className="pt-4 border-t space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    <Link to="/terms" className="text-primary font-medium hover:underline">
+                      View disclaimer &amp; terms &amp; conditions
+                    </Link>
+                  </p>
+                  {hasCustomTerms && (
+                    <div className="rounded-md border border-border bg-muted/40 p-4 max-h-48 overflow-y-auto">
+                      <p className="text-sm font-medium mb-2">Terms &amp; Conditions</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                        {termsText}
+                      </p>
+                    </div>
+                  )}
                   <div className="flex items-start space-x-2">
                     <Checkbox
                       id="indemnity"
@@ -670,8 +687,7 @@ export default function Register() {
                       disabled={isSubmitting}
                     />
                     <Label htmlFor="indemnity" className="text-sm font-normal cursor-pointer leading-relaxed">
-                      I hereby acknowledge that I participate in FOF 2026 at my own risk and agree to hold
-                      harmless the organizers from any liability for injuries or damages incurred during the event. *
+                      {disclaimerText} *
                     </Label>
                   </div>
                 </div>

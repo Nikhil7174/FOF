@@ -243,6 +243,12 @@ model Settings {
   heroTitle         String?
   heroSubtitle      String?
   heroDescription   String?
+  facebookUrl       String?
+  instagramUrl      String?
+  tiktokUrl         String?
+  linkedinUrl       String?
+  termsAndConditionsText String? @db.Text
+  disclaimerText    String?   @db.Text
   updatedAt         DateTime  @updatedAt
 }
 

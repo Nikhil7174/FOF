@@ -191,7 +191,7 @@ export function UserManagement() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Users Management</h2>
+        <h2 className="text-2xl font-bold">Participants Management</h2>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => handleOpenDialog()}>

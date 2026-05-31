@@ -11,6 +11,7 @@ import { VolunteerManagement } from "@/components/admin/VolunteerManagement";
 import { CalendarManagement } from "@/components/admin/CalendarManagement";
 import { TournamentFormatsManagement } from "@/components/admin/TournamentFormatsManagement";
 import { SettingsManagement } from "@/components/admin/SettingsManagement";
+import { TermsManagement } from "@/components/admin/TermsManagement";
 import { useAuth } from "@/hooks/api/useAuth";
 
 export default function AdminDashboard() {
@@ -58,10 +59,11 @@ export default function AdminDashboard() {
             <TabsTrigger value="overview" className="justify-start">Overview</TabsTrigger>
             <TabsTrigger value="sports" className="justify-start">Sports</TabsTrigger>
             <TabsTrigger value="communities" className="justify-start">Communities</TabsTrigger>
-            <TabsTrigger value="users" className="justify-start">Users</TabsTrigger>
+            <TabsTrigger value="users" className="justify-start">Participants</TabsTrigger>
             <TabsTrigger value="volunteers" className="justify-start">Volunteers</TabsTrigger>
             <TabsTrigger value="calendar" className="justify-start">Calendar</TabsTrigger>
             <TabsTrigger value="formats" className="justify-start">Tournament Formats</TabsTrigger>
+            <TabsTrigger value="terms" className="justify-start">Terms &amp; Conditions</TabsTrigger>
             <TabsTrigger value="settings" className="justify-start">Settings</TabsTrigger>
           </TabsList>
 
@@ -106,6 +108,10 @@ export default function AdminDashboard() {
 
             <TabsContent value="formats">
               <TournamentFormatsManagement />
+            </TabsContent>
+
+            <TabsContent value="terms">
+              <TermsManagement />
             </TabsContent>
 
             <TabsContent value="settings">

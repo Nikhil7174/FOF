@@ -69,7 +69,8 @@ export function CommunityDetailView() {
   }
 
   const handleSave = (data: CommunityUpdateFormData) => {
-    updateMutation.mutate({ id: community.id, data });
+    const { name: _name, ...updateData } = data;
+    updateMutation.mutate({ id: community.id, data: updateData });
   };
 
   const handleCancel = () => {
@@ -111,11 +112,12 @@ export function CommunityDetailView() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="name">Community Name</Label>
-                {isEditing ? (
-                  <Input id="name" {...form.register("name")} placeholder="Community Name" />
-                ) : (
-                  <Input value={community.name || "Not set"} disabled className="bg-muted" />
-                )}
+                <Input
+                  id="name"
+                  value={community.name || "Not set"}
+                  disabled
+                  className="bg-muted"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>

@@ -383,7 +383,7 @@ export const api = {
   async getSettings(): Promise<SettingsRecord> {
     return request<SettingsRecord>("/settings");
   },
-  async updateSettings(data: { ageCalculatorDate?: string | Date; profileFreezeDate?: string | Date | null }): Promise<SettingsRecord> {
+  async updateSettings(data: Partial<Pick<SettingsRecord, "ageCalculatorDate" | "profileFreezeDate" | "siteTitle" | "siteIconUrl" | "heroImageUrl" | "heroTitle" | "heroSubtitle" | "heroDescription" | "facebookUrl" | "instagramUrl" | "tiktokUrl" | "linkedinUrl" | "termsAndConditionsText" | "disclaimerText">>): Promise<SettingsRecord> {
     return request<SettingsRecord>("/settings", {
       method: "PATCH",
       body: JSON.stringify(data),

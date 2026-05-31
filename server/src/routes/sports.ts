@@ -24,8 +24,15 @@ const createSportSchema = z.object({
   timings: z.string().optional().nullable(),
   date: z.string().or(z.date()).optional().nullable(),
   gender: z.enum(["male", "female", "mixed"]).optional().nullable(),
-  ageLimitMin: z.number().optional(),
-  ageLimitMax: z.number().optional(),
+  ageLimitMin: z.number().nullable().optional(),
+  ageLimitMax: z.number().nullable().optional(),
+  ageLimit: z
+    .object({
+      min: z.number().nullable().optional(),
+      max: z.number().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
   rules: z.string().optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
   adminUsername: usernameFormatSchema.optional().nullable(),
@@ -33,6 +40,37 @@ const createSportSchema = z.object({
   adminPassword: z.string().optional().nullable(),
   incompatibleSportIds: z.array(z.string()).optional(),
 });
+
+function resolveAgeLimits(data: {
+  ageLimitMin?: number | null;
+  ageLimitMax?: number | null;
+  ageLimit?: { min?: number | null; max?: number | null } | null;
+}): { ageLimitMin?: number | null; ageLimitMax?: number | null } {
+  const resolved: { ageLimitMin?: number | null; ageLimitMax?: number | null } = {};
+
+  if (data.ageLimit !== undefined) {
+    if (data.ageLimit === null) {
+      resolved.ageLimitMin = null;
+      resolved.ageLimitMax = null;
+    } else {
+      if (data.ageLimit.min !== undefined) {
+        resolved.ageLimitMin = data.ageLimit.min;
+      }
+      if (data.ageLimit.max !== undefined) {
+        resolved.ageLimitMax = data.ageLimit.max;
+      }
+    }
+  }
+
+  if (data.ageLimitMin !== undefined) {
+    resolved.ageLimitMin = data.ageLimitMin;
+  }
+  if (data.ageLimitMax !== undefined) {
+    resolved.ageLimitMax = data.ageLimitMax;
+  }
+
+  return resolved;
+}
 
 async function syncSportAdminUser(options: {
   sportId: string;
@@ -220,6 +258,8 @@ router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req:
       return res.status(400).json({ error: "Admin password is required when setting an admin username" });
     }
 
+    const ageLimits = resolveAgeLimits(data);
+
     const sport = await prisma.sport.create({
       data: {
         name: data.name,
@@ -231,8 +271,8 @@ router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req:
         timings: data.timings,
         date,
         gender: data.gender as Gender | null,
-        ageLimitMin: data.ageLimitMin,
-        ageLimitMax: data.ageLimitMax,
+        ageLimitMin: ageLimits.ageLimitMin,
+        ageLimitMax: ageLimits.ageLimitMax,
         rules: data.rules,
         notes: data.notes,
         adminUsername,
@@ -333,7 +373,15 @@ router.patch("/:id", authenticate, requireRole("admin", "sports_admin"), async (
       hashedAdminPassword = await hashPassword(data.adminPassword);
     }
 
+    const ageLimits = resolveAgeLimits(data);
     const updateData: any = { ...data };
+    delete updateData.ageLimit;
+    if (ageLimits.ageLimitMin !== undefined) {
+      updateData.ageLimitMin = ageLimits.ageLimitMin;
+    }
+    if (ageLimits.ageLimitMax !== undefined) {
+      updateData.ageLimitMax = ageLimits.ageLimitMax;
+    }
     // Only include date in update if it was explicitly provided
     if (data.date !== undefined) {
       updateData.date = date;

@@ -61,25 +61,22 @@ const sportSchema = z.object({
   requiresTeamName: z.boolean(),
   parentId: z.string().optional().nullable(),
   active: z.boolean(),
-  venue: z.string().optional(),
-  timings: z.string().optional(),
-  date: z.string().optional(),
   gender: z.enum(["male", "female", "mixed"]).optional().nullable(),
   ageLimitMin: z.preprocess(
     (val) => {
-      if (val === "" || val === null || val === undefined) return undefined;
+      if (val === "" || val === null || val === undefined) return null;
       const num = Number(val);
-      return isNaN(num) ? undefined : num;
+      return isNaN(num) ? null : num;
     },
-    z.number().optional()
+    z.number().nullable().optional()
   ),
   ageLimitMax: z.preprocess(
     (val) => {
-      if (val === "" || val === null || val === undefined) return undefined;
+      if (val === "" || val === null || val === undefined) return null;
       const num = Number(val);
-      return isNaN(num) ? undefined : num;
+      return isNaN(num) ? null : num;
     },
-    z.number().optional()
+    z.number().nullable().optional()
   ),
   rules: z.string().optional(),
   notes: z.string().max(500).optional().nullable(),
@@ -138,9 +135,6 @@ export function SportManagement() {
       requiresTeamName: false,
       parentId: null,
       active: true,
-      venue: "",
-      timings: "",
-      date: "",
       gender: null,
       ageLimitMin: "" as any,
       ageLimitMax: "" as any,
@@ -165,27 +159,14 @@ export function SportManagement() {
         requiresTeamName: data.requiresTeamName,
         parentId: data.parentId ?? null,
         active: data.active,
-        venue: data.venue?.trim() || null,
-        timings: data.timings?.trim() || null,
-        // Only include date if it's a non-empty string, otherwise set to null to clear it
-        date: data.date?.trim() && data.date.trim().length > 0 ? data.date.trim() : null,
         gender: data.gender ?? null,
         adminUsername: data.adminUsername?.trim() && data.adminUsername.trim().length > 0 ? data.adminUsername.trim() : null,
         adminEmail: data.adminEmail?.trim() && data.adminEmail.trim().length > 0 ? data.adminEmail.trim() : null,
         adminPassword: data.adminPassword?.trim() && data.adminPassword.trim().length > 0 ? data.adminPassword.trim() : null,
-        ageLimit: (data.ageLimitMin !== undefined && data.ageLimitMin !== null && data.ageLimitMin !== "") || 
-                  (data.ageLimitMax !== undefined && data.ageLimitMax !== null && data.ageLimitMax !== "")
-          ? {
-              min: data.ageLimitMin !== undefined && data.ageLimitMin !== null && data.ageLimitMin !== "" 
-                ? (typeof data.ageLimitMin === "string" ? Number(data.ageLimitMin) : data.ageLimitMin) 
-                : null,
-              max: data.ageLimitMax !== undefined && data.ageLimitMax !== null && data.ageLimitMax !== "" 
-                ? (typeof data.ageLimitMax === "string" ? Number(data.ageLimitMax) : data.ageLimitMax) 
-                : null,
-            }
-          : null,
         rules: data.rules?.trim() || null,
         notes: data.notes?.trim() && data.notes.trim().length > 0 ? data.notes.trim() : null,
+        ...(data.ageLimitMin != null ? { ageLimitMin: data.ageLimitMin } : {}),
+        ...(data.ageLimitMax != null ? { ageLimitMax: data.ageLimitMax } : {}),
       };
       const sport = await api.createSport({
         ...sportData,
@@ -238,34 +219,16 @@ export function SportManagement() {
       if (data.requiresTeamName !== undefined) sportData.requiresTeamName = data.requiresTeamName;
       if (data.parentId !== undefined) sportData.parentId = data.parentId ?? null;
       if (data.active !== undefined) sportData.active = data.active;
-      if (data.venue !== undefined) sportData.venue = data.venue?.trim() || null;
-      if (data.timings !== undefined) sportData.timings = data.timings?.trim() || null;
-      // Only include date if it's a non-empty string, otherwise set to null to clear it
-      if (data.date !== undefined) {
-        const trimmedDate = data.date?.trim();
-        if (trimmedDate && trimmedDate.length > 0) {
-          sportData.date = trimmedDate;
-        } else {
-          // Send null to clear the date (backend schema now allows null)
-          sportData.date = null;
-        }
-      }
       if (data.gender !== undefined) sportData.gender = data.gender ?? null;
       
-      // Handle age limits - check if values are provided (not empty strings, null, or undefined)
-      const hasMinAge = data.ageLimitMin !== undefined && data.ageLimitMin !== null && data.ageLimitMin !== "";
-      const hasMaxAge = data.ageLimitMax !== undefined && data.ageLimitMax !== null && data.ageLimitMax !== "";
-      
-      if (hasMinAge || hasMaxAge) {
-        sportData.ageLimit = {
-          min: hasMinAge ? (typeof data.ageLimitMin === "string" ? Number(data.ageLimitMin) : data.ageLimitMin) : null,
-          max: hasMaxAge ? (typeof data.ageLimitMax === "string" ? Number(data.ageLimitMax) : data.ageLimitMax) : null,
-        };
-      } else if (data.ageLimitMin !== undefined || data.ageLimitMax !== undefined) {
-        // Explicitly set to null if both are empty (to clear age limit)
-        sportData.ageLimit = null;
+      // Age limits are optional — send each field only when present in the form (null clears it)
+      if (data.ageLimitMin !== undefined) {
+        sportData.ageLimitMin = data.ageLimitMin;
       }
-      
+      if (data.ageLimitMax !== undefined) {
+        sportData.ageLimitMax = data.ageLimitMax;
+      }
+
       if (data.rules !== undefined) sportData.rules = data.rules?.trim() || null;
       if (data.notes !== undefined) sportData.notes = data.notes?.trim() && data.notes.trim().length > 0 ? data.notes.trim() : null;
       
@@ -370,32 +333,25 @@ export function SportManagement() {
     if (sport?.id) {
       setEditingSport(sport);
       const convenor = convenors?.find(c => c?.sportId === sport.id) ?? null;
-      // Format date for date input (YYYY-MM-DD format)
-      let formattedDate = "";
-      if (sport.date) {
-        try {
-          const dateObj = typeof sport.date === "string" ? new Date(sport.date) : sport.date;
-          if (!isNaN(dateObj.getTime())) {
-            // Format as YYYY-MM-DD for date input
-            formattedDate = dateObj.toISOString().split("T")[0];
-          }
-        } catch (e) {
-          console.error("Error formatting date:", e);
-        }
-      }
-      
       form.reset({
         name: sport.name ?? "",
         type: sport.type ?? "individual",
         requiresTeamName: sport.requiresTeamName ?? false,
         parentId: sport.parentId ?? null,
         active: sport.active ?? true,
-        venue: sport.venue ?? "",
-        timings: sport.timings ?? "",
-        date: formattedDate,
         gender: sport.gender ?? null,
-        ageLimitMin: (sport.ageLimit?.min !== undefined && sport.ageLimit?.min !== null) ? String(sport.ageLimit.min) : "" as any,
-        ageLimitMax: (sport.ageLimit?.max !== undefined && sport.ageLimit?.max !== null) ? String(sport.ageLimit.max) : "" as any,
+        ageLimitMin:
+          sport.ageLimitMin != null
+            ? String(sport.ageLimitMin)
+            : sport.ageLimit?.min != null
+              ? String(sport.ageLimit.min)
+              : ("" as any),
+        ageLimitMax:
+          sport.ageLimitMax != null
+            ? String(sport.ageLimitMax)
+            : sport.ageLimit?.max != null
+              ? String(sport.ageLimit.max)
+              : ("" as any),
         rules: sport.rules ?? "",
         notes: (sport as any).notes ?? "",
         convenorName: convenor?.name ?? "",
@@ -595,47 +551,31 @@ export function SportManagement() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="venue">Venue</Label>
-                  <Input id="venue" {...form.register("venue")} placeholder="e.g., Main Stadium" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="timings">Timings</Label>
-                  <Input id="timings" {...form.register("timings")} placeholder="e.g., 09:00 - 17:00" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="date">Date</Label>
-                  <Input id="date" type="date" {...form.register("date")} placeholder="Date" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="gender">Gender</Label>
-                  <Select
-                    value={form.watch("gender") ?? "none"}
-                    onValueChange={(value) => form.setValue("gender", value === "none" ? null : value as "male" | "female" | "mixed")}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Any gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Any</SelectItem>
-                      <SelectItem value="male">Male</SelectItem>
-                      <SelectItem value="female">Female</SelectItem>
-                      <SelectItem value="mixed">Mixed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2 max-w-xs">
+                <Label htmlFor="gender">Gender</Label>
+                <Select
+                  value={form.watch("gender") ?? "none"}
+                  onValueChange={(value) => form.setValue("gender", value === "none" ? null : value as "male" | "female" | "mixed")}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Any gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Any</SelectItem>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="mixed">Mixed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <Label>Age Limit</Label>
+                <Label>Age Limit <span className="text-muted-foreground font-normal">(optional)</span></Label>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Input
                       type="number"
+                      min={0}
                       placeholder="Min age"
                       {...form.register("ageLimitMin")}
                     />
@@ -646,6 +586,7 @@ export function SportManagement() {
                   <div>
                     <Input
                       type="number"
+                      min={0}
                       placeholder="Max age"
                       {...form.register("ageLimitMax")}
                     />
@@ -946,9 +887,6 @@ export function SportManagement() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Type</TableHead>
-              <TableHead>Venue</TableHead>
-              <TableHead>Timings</TableHead>
-              <TableHead>Date</TableHead>
               <TableHead>Gender</TableHead>
               <TableHead>Age Limit</TableHead>
               <TableHead>Status</TableHead>
@@ -962,9 +900,6 @@ export function SportManagement() {
                   <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
@@ -972,7 +907,7 @@ export function SportManagement() {
               ))
             ) : sports.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
                   No sports found. Create one to get started.
                 </TableCell>
               </TableRow>
@@ -1000,15 +935,21 @@ export function SportManagement() {
                         {parent.name ?? "-"}
                       </TableCell>
                       <TableCell>{parent.type ?? "-"}</TableCell>
-                      <TableCell>{parent.venue ?? "-"}</TableCell>
-                      <TableCell>{parent.timings ?? "-"}</TableCell>
-                      <TableCell>{parent.date ? new Date(parent.date).toLocaleDateString() : "-"}</TableCell>
                       <TableCell>{parent.gender ?? "Any"}</TableCell>
                       <TableCell>
-                        {parent.ageLimit?.min !== null && parent.ageLimit?.min !== undefined || 
-                         parent.ageLimit?.max !== null && parent.ageLimit?.max !== undefined
-                          ? `${parent.ageLimit?.min ?? "?"}-${parent.ageLimit?.max ?? "?"}`
-                          : "-"}
+                        {(parent.ageLimitMin ?? parent.ageLimit?.min) != null ||
+                         (parent.ageLimitMax ?? parent.ageLimit?.max) != null
+                          ? [
+                              (parent.ageLimitMin ?? parent.ageLimit?.min) != null
+                                ? String(parent.ageLimitMin ?? parent.ageLimit?.min)
+                                : null,
+                              (parent.ageLimitMax ?? parent.ageLimit?.max) != null
+                                ? String(parent.ageLimitMax ?? parent.ageLimit?.max)
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join("–")
+                          : "—"}
                       </TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded text-xs ${parent.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
@@ -1033,15 +974,21 @@ export function SportManagement() {
                           <TableRow key={child.id}>
                             <TableCell className="font-medium pl-8">└─ {child.name ?? "-"}</TableCell>
                             <TableCell>{child.type ?? "-"}</TableCell>
-                            <TableCell>{child.venue ?? "-"}</TableCell>
-                            <TableCell>{child.timings ?? "-"}</TableCell>
-                            <TableCell>{child.date ? new Date(child.date).toLocaleDateString() : "-"}</TableCell>
                             <TableCell>{child.gender ?? "Any"}</TableCell>
                             <TableCell>
-                              {child.ageLimit?.min !== null && child.ageLimit?.min !== undefined || 
-                               child.ageLimit?.max !== null && child.ageLimit?.max !== undefined
-                                ? `${child.ageLimit?.min ?? "?"}-${child.ageLimit?.max ?? "?"}`
-                                : "-"}
+                              {(child.ageLimitMin ?? child.ageLimit?.min) != null ||
+                               (child.ageLimitMax ?? child.ageLimit?.max) != null
+                                ? [
+                                    (child.ageLimitMin ?? child.ageLimit?.min) != null
+                                      ? String(child.ageLimitMin ?? child.ageLimit?.min)
+                                      : null,
+                                    (child.ageLimitMax ?? child.ageLimit?.max) != null
+                                      ? String(child.ageLimitMax ?? child.ageLimit?.max)
+                                      : null,
+                                  ]
+                                    .filter(Boolean)
+                                    .join("–")
+                                : "—"}
                             </TableCell>
                             <TableCell>
                               <span className={`px-2 py-1 rounded text-xs ${child.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>

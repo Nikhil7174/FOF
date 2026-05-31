@@ -13,6 +13,7 @@ import Communities from "./pages/Communities";
 import NotFound from "./pages/NotFound";
 import ThankYou from "./pages/ThankYou";
 import Contact from "./pages/Contact";
+import Terms from "./pages/Terms";
 import { AuthProvider, useAuth } from "./hooks/api/useAuth";
 import { Footer } from "./components/Footer";
 import AdminDashboard from "./pages/admin/Dashboard";
@@ -98,6 +99,7 @@ const App = () => (
             <Route path="/register" element={<Register />} />
             <Route path="/thank-you" element={<ThankYou />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/terms" element={<Terms />} />
             <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
             <Route path="/volunteer" element={<Volunteer />} />
             <Route path="/calendar" element={<Calendar />} />

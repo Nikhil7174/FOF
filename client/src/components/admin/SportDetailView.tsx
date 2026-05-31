@@ -13,12 +13,23 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
 const sportUpdateSchema = z.object({
-  venue: z.string().optional(),
-  timings: z.string().optional(),
-  date: z.string().optional(),
   gender: z.enum(["male", "female", "mixed"]).optional().nullable(),
-  ageLimitMin: z.coerce.number().optional(),
-  ageLimitMax: z.coerce.number().optional(),
+  ageLimitMin: z.preprocess(
+    (val) => {
+      if (val === "" || val === null || val === undefined) return null;
+      const num = Number(val);
+      return isNaN(num) ? null : num;
+    },
+    z.number().nullable().optional()
+  ),
+  ageLimitMax: z.preprocess(
+    (val) => {
+      if (val === "" || val === null || val === undefined) return null;
+      const num = Number(val);
+      return isNaN(num) ? null : num;
+    },
+    z.number().nullable().optional()
+  ),
 });
 
 type SportUpdateFormData = z.infer<typeof sportUpdateSchema>;
@@ -41,12 +52,9 @@ export function SportDetailView() {
   useEffect(() => {
     if (sport?.id && !isEditing) {
       form.reset({
-        venue: sport.venue ?? "",
-        timings: sport.timings ?? "",
-        date: sport.date ?? "",
         gender: sport.gender ?? null,
-        ageLimitMin: sport.ageLimit?.min ?? undefined,
-        ageLimitMax: sport.ageLimit?.max ?? undefined,
+        ageLimitMin: sport.ageLimitMin ?? sport.ageLimit?.min ?? ("" as any),
+        ageLimitMax: sport.ageLimitMax ?? sport.ageLimit?.max ?? ("" as any),
       });
     }
   }, [sport, isEditing, form]);
@@ -58,15 +66,12 @@ export function SportDetailView() {
       }
       
       const sportData: any = {};
-      if (data.venue !== undefined) sportData.venue = data.venue?.trim() || null;
-      if (data.timings !== undefined) sportData.timings = data.timings?.trim() || null;
-      if (data.date !== undefined) sportData.date = data.date || null;
       if (data.gender !== undefined) sportData.gender = data.gender ?? null;
-      if (data.ageLimitMin !== undefined || data.ageLimitMax !== undefined) {
-        sportData.ageLimit = { 
-          min: data.ageLimitMin ?? null, 
-          max: data.ageLimitMax ?? null 
-        };
+      if (data.ageLimitMin !== undefined) {
+        sportData.ageLimitMin = data.ageLimitMin;
+      }
+      if (data.ageLimitMax !== undefined) {
+        sportData.ageLimitMax = data.ageLimitMax;
       }
       return api.updateSport(id, sportData);
     },
@@ -91,12 +96,9 @@ export function SportDetailView() {
   const handleCancel = () => {
     if (sport?.id) {
       form.reset({
-        venue: sport.venue ?? "",
-        timings: sport.timings ?? "",
-        date: sport.date ?? "",
         gender: sport.gender ?? null,
-        ageLimitMin: sport.ageLimit?.min ?? undefined,
-        ageLimitMax: sport.ageLimit?.max ?? undefined,
+        ageLimitMin: sport.ageLimitMin ?? sport.ageLimit?.min ?? ("" as any),
+        ageLimitMax: sport.ageLimitMax ?? sport.ageLimit?.max ?? ("" as any),
       });
     }
     setIsEditing(false);
@@ -138,70 +140,41 @@ export function SportDetailView() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="venue">Venue</Label>
-                {isEditing ? (
-                  <Input id="venue" {...form.register("venue")} placeholder="Venue" />
-                ) : (
-                  <Input value={sport.venue || "Not set"} disabled className="bg-muted" />
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="timings">Timings</Label>
-                {isEditing ? (
-                  <Input id="timings" {...form.register("timings")} placeholder="e.g., 09:00 - 17:00" />
-                ) : (
-                  <Input value={sport.timings || "Not set"} disabled className="bg-muted" />
-                )}
-              </div>
+            <div className="space-y-2 max-w-xs">
+              <Label htmlFor="gender">Gender</Label>
+              {isEditing ? (
+                <Select
+                  value={form.watch("gender") ?? "none"}
+                  onValueChange={(value) => form.setValue("gender", value === "none" ? null : value as "male" | "female" | "mixed")}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Any gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Any</SelectItem>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="mixed">Mixed</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={sport.gender || "Any"} disabled className="bg-muted" />
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
-                {isEditing ? (
-                  <Input id="date" type="date" {...form.register("date")} placeholder="Date" />
-                ) : (
-                  <Input value={sport.date || "Not set"} disabled className="bg-muted" />
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="gender">Gender</Label>
-                {isEditing ? (
-                  <Select
-                    value={form.watch("gender") ?? "none"}
-                    onValueChange={(value) => form.setValue("gender", value === "none" ? null : value as "male" | "female" | "mixed")}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Any gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Any</SelectItem>
-                      <SelectItem value="male">Male</SelectItem>
-                      <SelectItem value="female">Female</SelectItem>
-                      <SelectItem value="mixed">Mixed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input value={sport.gender || "Any"} disabled className="bg-muted" />
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label>Age Limit</Label>
+                <Label>Age Limit <span className="text-muted-foreground font-normal">(optional)</span></Label>
                 <div className="grid grid-cols-2 gap-4">
                   {isEditing ? (
                     <>
-                      <Input type="number" placeholder="Min age" {...form.register("ageLimitMin", { valueAsNumber: true })} />
-                      <Input type="number" placeholder="Max age" {...form.register("ageLimitMax", { valueAsNumber: true })} />
+                      <Input type="number" min={0} placeholder="Min age (optional)" {...form.register("ageLimitMin")} />
+                      <Input type="number" min={0} placeholder="Max age (optional)" {...form.register("ageLimitMax")} />
                     </>
                   ) : (
                     <>
-                      <Input value={sport.ageLimit?.min || ""} disabled className="bg-muted" placeholder="Min age" />
-                      <Input value={sport.ageLimit?.max || ""} disabled className="bg-muted" placeholder="Max age" />
+                      <Input value={sport.ageLimitMin ?? sport.ageLimit?.min ?? ""} disabled className="bg-muted" placeholder="Min age" />
+                      <Input value={sport.ageLimitMax ?? sport.ageLimit?.max ?? ""} disabled className="bg-muted" placeholder="Max age" />
                     </>
                   )}
                 </div>

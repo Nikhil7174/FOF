@@ -115,6 +115,12 @@ export interface SettingsRecord {
   heroTitle?: string | null;
   heroSubtitle?: string | null;
   heroDescription?: string | null;
+  facebookUrl?: string | null;
+  instagramUrl?: string | null;
+  tiktokUrl?: string | null;
+  linkedinUrl?: string | null;
+  termsAndConditionsText?: string | null;
+  disclaimerText?: string | null;
   updatedAt: string;
 }
 

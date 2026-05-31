@@ -27,6 +27,7 @@ export const Navbar = () => {
     { to: "/communities", label: "Communities" },
     { to: "/leaderboard", label: "Leaderboard" },
     { to: "/contact", label: "Contact" },
+    { to: "/terms", label: "Terms" },
   ];
 
   const isActive = (path: string) => location.pathname === path;

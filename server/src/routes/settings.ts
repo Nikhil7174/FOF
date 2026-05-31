@@ -51,6 +51,12 @@ const updateSettingsSchema = z.object({
   heroTitle: z.string().nullable().optional(),
   heroSubtitle: z.string().nullable().optional(),
   heroDescription: z.string().nullable().optional(),
+  facebookUrl: z.union([z.string().url(), z.literal("")]).nullable().optional(),
+  instagramUrl: z.union([z.string().url(), z.literal("")]).nullable().optional(),
+  tiktokUrl: z.union([z.string().url(), z.literal("")]).nullable().optional(),
+  linkedinUrl: z.union([z.string().url(), z.literal("")]).nullable().optional(),
+  termsAndConditionsText: z.string().nullable().optional(),
+  disclaimerText: z.string().nullable().optional(),
 });
 
 // Get settings (public endpoint for home screen display)
@@ -119,6 +125,30 @@ router.patch("/", authenticate, requireRole("admin"), async (req: AuthRequest, r
 
     if (data.heroDescription !== undefined) {
       updateData.heroDescription = data.heroDescription === "" ? null : data.heroDescription;
+    }
+
+    if (data.facebookUrl !== undefined) {
+      updateData.facebookUrl = data.facebookUrl === "" ? null : data.facebookUrl;
+    }
+
+    if (data.instagramUrl !== undefined) {
+      updateData.instagramUrl = data.instagramUrl === "" ? null : data.instagramUrl;
+    }
+
+    if (data.tiktokUrl !== undefined) {
+      updateData.tiktokUrl = data.tiktokUrl === "" ? null : data.tiktokUrl;
+    }
+
+    if (data.linkedinUrl !== undefined) {
+      updateData.linkedinUrl = data.linkedinUrl === "" ? null : data.linkedinUrl;
+    }
+
+    if (data.termsAndConditionsText !== undefined) {
+      updateData.termsAndConditionsText = data.termsAndConditionsText === "" ? null : data.termsAndConditionsText;
+    }
+
+    if (data.disclaimerText !== undefined) {
+      updateData.disclaimerText = data.disclaimerText === "" ? null : data.disclaimerText;
     }
 
     if (settings) {

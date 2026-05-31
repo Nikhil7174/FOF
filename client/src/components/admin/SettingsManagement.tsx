@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, X, Home, Image, Type, Upload, Loader2, RotateCcw } from "lucide-react";
+import { Calendar, X, Home, Image, Type, Upload, Loader2, RotateCcw, Share2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +45,10 @@ export function SettingsManagement() {
   const [heroTitle, setHeroTitle] = useState<string>("");
   const [heroSubtitle, setHeroSubtitle] = useState<string>("");
   const [heroDescription, setHeroDescription] = useState<string>("");
+  const [facebookUrl, setFacebookUrl] = useState<string>("");
+  const [instagramUrl, setInstagramUrl] = useState<string>("");
+  const [tiktokUrl, setTiktokUrl] = useState<string>("");
+  const [linkedinUrl, setLinkedinUrl] = useState<string>("");
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
   const settingsQuery = useQuery({
@@ -70,6 +74,10 @@ export function SettingsManagement() {
     setHeroTitle(settings?.heroTitle || "");
     setHeroSubtitle(settings?.heroSubtitle || "");
     setHeroDescription(settings?.heroDescription || "");
+    setFacebookUrl(settings?.facebookUrl || "");
+    setInstagramUrl(settings?.instagramUrl || "");
+    setTiktokUrl(settings?.tiktokUrl || "");
+    setLinkedinUrl(settings?.linkedinUrl || "");
   }, [settings]);
 
   const freezeDefaultValue = formatDateForInput(settings?.profileFreezeDate);
@@ -177,7 +185,11 @@ export function SettingsManagement() {
       heroImageUrl !== (settings?.heroImageUrl || "") ||
       heroTitle !== (settings?.heroTitle || "") ||
       heroSubtitle !== (settings?.heroSubtitle || "") ||
-      heroDescription !== (settings?.heroDescription || "");
+      heroDescription !== (settings?.heroDescription || "") ||
+      facebookUrl !== (settings?.facebookUrl || "") ||
+      instagramUrl !== (settings?.instagramUrl || "") ||
+      tiktokUrl !== (settings?.tiktokUrl || "") ||
+      linkedinUrl !== (settings?.linkedinUrl || "");
 
     if (!hasChanges) return;
 
@@ -188,6 +200,10 @@ export function SettingsManagement() {
       heroTitle: heroTitle || null,
       heroSubtitle: heroSubtitle || null,
       heroDescription: heroDescription || null,
+      facebookUrl: facebookUrl || null,
+      instagramUrl: instagramUrl || null,
+      tiktokUrl: tiktokUrl || null,
+      linkedinUrl: linkedinUrl || null,
     });
   };
 
@@ -199,6 +215,10 @@ export function SettingsManagement() {
     setHeroTitle("");
     setHeroSubtitle("");
     setHeroDescription("");
+    setFacebookUrl("");
+    setInstagramUrl("");
+    setTiktokUrl("");
+    setLinkedinUrl("");
 
     // Update settings to clear all home screen customizations
     updateMutation.mutate({
@@ -208,6 +228,10 @@ export function SettingsManagement() {
       heroTitle: null,
       heroSubtitle: null,
       heroDescription: null,
+      facebookUrl: null,
+      instagramUrl: null,
+      tiktokUrl: null,
+      linkedinUrl: null,
     });
 
     setResetDialogOpen(false);
@@ -352,7 +376,7 @@ export function SettingsManagement() {
             Home Screen Customization
           </CardTitle>
           <CardDescription>
-            Customize the home screen appearance including site title, icon, hero image, and text content.
+            Customize the home screen appearance including site title, icon, hero image, text content, and footer social media links.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -569,6 +593,59 @@ export function SettingsManagement() {
             </div>
           </div>
 
+          {/* Social Media Links */}
+          <div className="space-y-4 pt-4 border-t">
+            <div className="flex items-center gap-2 mb-4">
+              <Share2 className="h-4 w-4" />
+              <h3 className="font-semibold">Social Media Links</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Footer social icons. Leave empty to use default platform URLs.
+            </p>
+            <div className="grid gap-4 max-w-md">
+              <div className="space-y-2">
+                <Label htmlFor="facebookUrl">Facebook</Label>
+                <Input
+                  id="facebookUrl"
+                  type="url"
+                  value={facebookUrl}
+                  onChange={(e) => setFacebookUrl(e.target.value)}
+                  placeholder="https://facebook.com/your-page"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="instagramUrl">Instagram</Label>
+                <Input
+                  id="instagramUrl"
+                  type="url"
+                  value={instagramUrl}
+                  onChange={(e) => setInstagramUrl(e.target.value)}
+                  placeholder="https://instagram.com/your-profile"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tiktokUrl">TikTok</Label>
+                <Input
+                  id="tiktokUrl"
+                  type="url"
+                  value={tiktokUrl}
+                  onChange={(e) => setTiktokUrl(e.target.value)}
+                  placeholder="https://tiktok.com/@your-profile"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="linkedinUrl">LinkedIn</Label>
+                <Input
+                  id="linkedinUrl"
+                  type="url"
+                  value={linkedinUrl}
+                  onChange={(e) => setLinkedinUrl(e.target.value)}
+                  placeholder="https://linkedin.com/company/your-org"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="pt-4 border-t flex items-center justify-between">
             <Button
               onClick={handleUpdateHomeScreen}
@@ -592,6 +669,7 @@ export function SettingsManagement() {
                       <li>Site title and icon</li>
                       <li>Hero background image</li>
                       <li>Hero title, subtitle, and description</li>
+                      <li>Social media links</li>
                     </ul>
                     <p className="mt-2">The home screen will revert to default values. This action cannot be undone.</p>
                   </AlertDialogDescription>
