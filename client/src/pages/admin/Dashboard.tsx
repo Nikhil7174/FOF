@@ -15,21 +15,14 @@ import { TermsManagement } from "@/components/admin/TermsManagement";
 import { useAuth } from "@/hooks/api/useAuth";
 
 export default function AdminDashboard() {
-  const { user } = useAuth(); // Add this to check auth status
-  
-  const { data: users = [], isLoading: isLoadingUsers } = useQuery({ 
-    queryKey: ["users"], 
-    queryFn: api.listUsers,
-    enabled: !!user, // Only fetch when user is authenticated
-    retry: 2, // Retry failed requests
-  });
+  const { user } = useAuth();
   
   const { data: volunteers = [], isLoading: isLoadingVolunteers } = useQuery({ 
     queryKey: ["volunteers"], 
     queryFn: () => api.listVolunteers(),
-    enabled: !!user, // Only fetch when user is authenticated
-    retry: 2, // Retry failed requests
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    enabled: !!user,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
   });
   
   const { data: sports = [], isLoading: isLoadingSports } = useQuery({ 
@@ -46,7 +39,18 @@ export default function AdminDashboard() {
     retry: 2,
   });
 
-  const isLoading = isLoadingUsers || isLoadingVolunteers || isLoadingSports || isLoadingCommunities;
+  const { data: participantStats, isLoading: isLoadingParticipantStats } = useQuery({
+    queryKey: ["participantStats"],
+    queryFn: api.getParticipantStats,
+    enabled: !!user,
+    retry: 2,
+  });
+
+  const isLoading =
+    isLoadingVolunteers ||
+    isLoadingSports ||
+    isLoadingCommunities ||
+    isLoadingParticipantStats;
 
   return (
     <div className="min-h-screen bg-background">
@@ -70,15 +74,17 @@ export default function AdminDashboard() {
           <div className="flex-1 space-y-6">
             <TabsContent value="overview" className="space-y-4">
               {isLoading ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  <Skeleton className="h-24" />
                   <Skeleton className="h-24" />
                   <Skeleton className="h-24" />
                   <Skeleton className="h-24" />
                   <Skeleton className="h-24" />
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Stat title="Users" value={users.length} />
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  <Stat title="Registered Participants" value={participantStats?.totalRegistered ?? 0} />
+                  <Stat title="Accepted Participants" value={participantStats?.totalAccepted ?? 0} />
                   <Stat title="Volunteers" value={volunteers.length} />
                   <Stat title="Sports" value={sports.length} />
                   <Stat title="Communities" value={communities.length} />

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api";
 import { SportRecord, Convenor } from "@/types";
+import { getSportCounts } from "@/utils/sportParticipantCounts";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -125,6 +126,11 @@ export function SportManagement() {
   const { data: convenors = [] } = useQuery({
     queryKey: ["convenors"],
     queryFn: api.listConvenors,
+  });
+
+  const { data: participantStats } = useQuery({
+    queryKey: ["participantStats"],
+    queryFn: api.getParticipantStats,
   });
 
   const form = useForm<SportFormData>({
@@ -889,7 +895,7 @@ export function SportManagement() {
               <TableHead>Type</TableHead>
               <TableHead>Gender</TableHead>
               <TableHead>Age Limit</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Participants</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -952,9 +958,13 @@ export function SportManagement() {
                           : "—"}
                       </TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 rounded text-xs ${parent.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
-                          {parent.active ? "Active" : "Inactive"}
-                        </span>
+                        {participantStats ? (
+                          <ParticipantCountsCell
+                            {...getSportCounts(parent, sports, participantStats.bySportId)}
+                          />
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -991,9 +1001,13 @@ export function SportManagement() {
                                 : "—"}
                             </TableCell>
                             <TableCell>
-                              <span className={`px-2 py-1 rounded text-xs ${child.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
-                                {child.active ? "Active" : "Inactive"}
-                              </span>
+                              {participantStats ? (
+                                <ParticipantCountsCell
+                                  {...getSportCounts(child, sports, participantStats.bySportId, false)}
+                                />
+                              ) : (
+                                "—"
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
@@ -1030,6 +1044,29 @@ export function SportManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function ParticipantCountsCell({
+  registered,
+  accepted,
+}: {
+  registered: number;
+  accepted: number;
+}) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-md border bg-muted/30 text-sm">
+      <div className="px-3 py-1.5 text-center border-r">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Registered</div>
+        <div className="font-semibold tabular-nums leading-tight">{registered}</div>
+      </div>
+      <div className="px-3 py-1.5 text-center">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Accepted</div>
+        <div className="font-semibold tabular-nums leading-tight text-green-700 dark:text-green-400">
+          {accepted}
+        </div>
+      </div>
     </div>
   );
 }

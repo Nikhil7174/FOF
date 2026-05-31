@@ -88,6 +88,37 @@ const createParticipantSchema = z.object({
   notes: z.string().min(1, "Payment details are required").max(500),
 });
 
+// Public participant stats for the main dashboard
+router.get("/stats", async (_req: AuthRequest, res: Response) => {
+  try {
+    const [totalRegistered, totalAccepted, participantSports] = await Promise.all([
+      prisma.participant.count(),
+      prisma.participant.count({ where: { status: ParticipantStatus.accepted } }),
+      prisma.participantSport.findMany({
+        select: {
+          sportId: true,
+          participant: { select: { status: true } },
+        },
+      }),
+    ]);
+
+    const bySportId: Record<string, { registered: number; accepted: number }> = {};
+    for (const ps of participantSports) {
+      if (!bySportId[ps.sportId]) {
+        bySportId[ps.sportId] = { registered: 0, accepted: 0 };
+      }
+      bySportId[ps.sportId].registered++;
+      if (ps.participant.status === ParticipantStatus.accepted) {
+        bySportId[ps.sportId].accepted++;
+      }
+    }
+
+    res.json({ totalRegistered, totalAccepted, bySportId });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to fetch participant stats" });
+  }
+});
+
 // List all participants (admin, community_admin, sports_admin)
 router.get("/", authenticate, requireRole("admin", "community_admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
   try {

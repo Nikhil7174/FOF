@@ -54,6 +54,12 @@ export interface VolunteerEntry {
   createdAt: string;
 }
 
+export interface ParticipantStats {
+  totalRegistered: number;
+  totalAccepted: number;
+  bySportId: Record<string, { registered: number; accepted: number }>;
+}
+
 export interface SportRecord {
   id: string;
   name: string;

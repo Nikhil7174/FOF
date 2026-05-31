@@ -1,7 +1,7 @@
 // API client for backend server
 
 // Import types from shared types file
-import type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult } from "@/types";
+import type { Role, User, Participant, ParticipantStats, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult } from "@/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
@@ -102,7 +102,7 @@ async function request<T>(
 }
 
 // Re-export types for convenience
-export type { Role, User, Participant, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult };
+export type { Role, User, Participant, ParticipantStats, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult };
 
 // API methods
 export const api = {
@@ -161,6 +161,10 @@ export const api = {
   },
 
   // Participants
+  async getParticipantStats(): Promise<ParticipantStats> {
+    return request<ParticipantStats>("/participants/stats");
+  },
+
   async listParticipants(): Promise<Participant[]> {
     return request<Participant[]>("/participants");
   },
