@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Edit, Save, X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -37,6 +38,20 @@ export function CommunityDetailView() {
     queryFn: () => user?.communityId ? api.getCommunity(user.communityId) : null,
     enabled: !!user?.communityId,
   });
+
+  const { data: participants = [], isLoading: isLoadingParticipants } = useQuery({
+    queryKey: ["participants"],
+    queryFn: api.listParticipants,
+    enabled: !!user?.communityId,
+  });
+
+  const communityCounts = useMemo(
+    () => ({
+      registered: participants.length,
+      accepted: participants.filter((p) => p.status === "accepted").length,
+    }),
+    [participants]
+  );
 
   const form = useForm<CommunityUpdateFormData>({
     resolver: zodResolver(communityUpdateSchema),
@@ -85,7 +100,37 @@ export function CommunityDetailView() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto space-y-4">
+      {isLoadingParticipants ? (
+        <div className="grid grid-cols-2 gap-4 max-w-md">
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4 max-w-md">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-medium leading-snug min-h-[2.75rem]">
+                Registered Participants
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-3xl font-bold tabular-nums leading-none">{communityCounts.registered}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-medium leading-snug min-h-[2.75rem]">
+                Accepted Participants
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-3xl font-bold tabular-nums leading-none">{communityCounts.accepted}</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{community.name} - Details</CardTitle>
