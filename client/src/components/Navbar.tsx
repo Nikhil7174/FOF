@@ -32,12 +32,17 @@ export const Navbar = () => {
 
   const isActive = (path: string) => location.pathname === path;
 
+  const navLinkClass = (path: string) =>
+    `text-sm font-medium transition-colors duration-200 rounded-md px-1 py-0.5 hover:text-primary focus-visible:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+      isActive(path) ? "text-primary" : "text-muted-foreground"
+    }`;
+
   return (
     <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
       <div className="container mx-auto px-4">
-        <div className="flex md:grid md:grid-cols-3 h-16 items-center">
+        <div className="flex h-16 items-center gap-2">
           {/* Left: Brand */}
-          <div className="flex items-center justify-start">
+          <div className="flex shrink-0 items-center justify-start">
             <Link to="/" className="flex items-center gap-2 font-bold text-xl">
               {siteIconUrl ? (
                 <img src={siteIconUrl} alt="Site Icon" className="h-10 w-10 object-contain" />
@@ -49,22 +54,18 @@ export const Navbar = () => {
           </div>
 
           {/* Center: Desktop Navigation */}
-          <div className="hidden md:flex items-center justify-center gap-6">
-            {navLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={`text-sm font-medium transition-colors hover:text-primary ${
-                  isActive(link.to) ? "text-primary" : "text-muted-foreground"
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+          <div className="relative z-10 hidden min-w-0 flex-1 md:flex md:items-center md:justify-center">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 lg:gap-x-6">
+              {navLinks.map((link) => (
+                <Link key={link.to} to={link.to} className={navLinkClass(link.to)}>
+                  {link.label}
+                </Link>
+              ))}
+            </div>
           </div>
 
           {/* Right: Desktop Actions */}
-          <div className="hidden md:flex items-center justify-end">
+          <div className="relative z-0 hidden shrink-0 md:flex md:items-center md:justify-end">
             <DesktopActions />
           </div>
 
@@ -87,9 +88,7 @@ export const Navbar = () => {
                   key={link.to}
                   to={link.to}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`text-sm font-medium transition-colors hover:text-primary ${
-                    isActive(link.to) ? "text-primary" : "text-muted-foreground"
-                  }`}
+                  className={navLinkClass(link.to)}
                 >
                   {link.label}
                 </Link>
