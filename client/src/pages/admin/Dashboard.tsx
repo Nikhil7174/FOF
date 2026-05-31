@@ -133,11 +133,13 @@ export default function AdminDashboard() {
 function Stat({ title, value }: { title: string; value: number }) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base font-medium leading-snug min-h-[2.75rem]">
+          {title}
+        </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold">{value}</div>
+      <CardContent className="pt-0">
+        <div className="text-3xl font-bold tabular-nums leading-none">{value}</div>
       </CardContent>
     </Card>
   );
