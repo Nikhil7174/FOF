@@ -63,7 +63,7 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
 });
 
 // Create tournament format
-router.post("/", authenticate, requireRole("admin"), async (req: AuthRequest, res: Response) => {
+router.post("/", authenticate, requireRole("admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const data = createFormatSchema.parse(req.body);
 
@@ -99,7 +99,7 @@ router.post("/", authenticate, requireRole("admin"), async (req: AuthRequest, re
 });
 
 // Update tournament format
-router.patch("/:id", authenticate, requireRole("admin"), async (req: AuthRequest, res: Response) => {
+router.patch("/:id", authenticate, requireRole("admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const data = createFormatSchema.partial().parse(req.body);
@@ -125,7 +125,7 @@ router.patch("/:id", authenticate, requireRole("admin"), async (req: AuthRequest
 });
 
 // Delete tournament format
-router.delete("/:id", authenticate, requireRole("admin"), async (req: AuthRequest, res: Response) => {
+router.delete("/:id", authenticate, requireRole("admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 

@@ -5,110 +5,66 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api";
 import { SportManagement } from "@/components/admin/SportManagement";
-import { CommunityManagement } from "@/components/admin/CommunityManagement";
-import { UserManagement } from "@/components/admin/UserManagement";
-import { VolunteerManagement } from "@/components/admin/VolunteerManagement";
 import { CalendarManagement } from "@/components/admin/CalendarManagement";
 import { TournamentFormatsManagement } from "@/components/admin/TournamentFormatsManagement";
-import { SettingsManagement } from "@/components/admin/SettingsManagement";
-import { TermsManagement } from "@/components/admin/TermsManagement";
-import { CommunitySportMatrixOverview } from "@/components/admin/CommunitySportMatrixOverview";
+import { SportParticipantsTable } from "@/components/admin/SportParticipantsTable";
 import { useAuth } from "@/hooks/api/useAuth";
 import { countParentSports } from "@/utils/sportParticipantCounts";
 
-export default function AdminDashboard() {
+export default function SportsSuperAdmin() {
   const { user } = useAuth();
-  
-  const { data: volunteers = [], isLoading: isLoadingVolunteers } = useQuery({ 
-    queryKey: ["volunteers"], 
-    queryFn: () => api.listVolunteers(),
-    enabled: !!user,
-    retry: 2,
-    staleTime: 5 * 60 * 1000,
-  });
-  
-  const { data: sports = [], isLoading: isLoadingSports } = useQuery({ 
-    queryKey: ["sports"], 
+
+  const { data: sports = [], isLoading: isLoadingSports } = useQuery({
+    queryKey: ["sports"],
     queryFn: api.listSports,
     enabled: !!user,
-    retry: 2,
-  });
-  
-  const { data: communities = [], isLoading: isLoadingCommunities } = useQuery({ 
-    queryKey: ["communities"], 
-    queryFn: api.listCommunities,
-    enabled: !!user,
-    retry: 2,
   });
 
   const { data: participantStats, isLoading: isLoadingParticipantStats } = useQuery({
     queryKey: ["participantStats"],
     queryFn: api.getParticipantStats,
     enabled: !!user,
-    retry: 2,
   });
 
-  const isLoading =
-    isLoadingVolunteers ||
-    isLoadingSports ||
-    isLoadingCommunities ||
-    isLoadingParticipantStats;
+  const isLoading = isLoadingSports || isLoadingParticipantStats;
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
-        
+        <h1 className="text-3xl font-bold mb-2">Sports Super Admin Dashboard</h1>
+        <p className="text-muted-foreground mb-6">
+          Manage all sports, rules, formats, and calendar events across the festival.
+        </p>
+
         <Tabs defaultValue="overview" orientation="vertical" className="flex flex-col md:flex-row gap-6">
           <TabsList className="flex flex-col gap-2 w-full md:w-64 bg-muted/40 p-2 rounded-lg h-fit">
             <TabsTrigger value="overview" className="justify-start">Overview</TabsTrigger>
             <TabsTrigger value="sports" className="justify-start">Sports</TabsTrigger>
-            <TabsTrigger value="communities" className="justify-start">Communities</TabsTrigger>
-            <TabsTrigger value="users" className="justify-start">Participants</TabsTrigger>
-            <TabsTrigger value="volunteers" className="justify-start">Volunteers</TabsTrigger>
             <TabsTrigger value="calendar" className="justify-start">Calendar</TabsTrigger>
             <TabsTrigger value="formats" className="justify-start">Tournament Formats</TabsTrigger>
-            <TabsTrigger value="terms" className="justify-start">Terms &amp; Conditions</TabsTrigger>
-            <TabsTrigger value="settings" className="justify-start">Settings</TabsTrigger>
+            <TabsTrigger value="participants" className="justify-start">Participants</TabsTrigger>
           </TabsList>
 
           <div className="flex-1 min-w-0 space-y-6">
             <TabsContent value="overview" className="space-y-4 min-w-0">
               {isLoading ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                  <Skeleton className="h-24" />
-                  <Skeleton className="h-24" />
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <Skeleton className="h-24" />
                   <Skeleton className="h-24" />
                   <Skeleton className="h-24" />
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <Stat title="Sports" value={countParentSports(sports)} />
                   <Stat title="Registered Participants" value={participantStats?.totalRegistered ?? 0} />
                   <Stat title="Accepted Participants" value={participantStats?.totalAccepted ?? 0} />
-                  <Stat title="Volunteers" value={volunteers.length} />
-                  <Stat title="Sports" value={countParentSports(sports)} />
-                  <Stat title="Communities" value={communities.length} />
                 </div>
               )}
-              <CommunitySportMatrixOverview />
             </TabsContent>
 
             <TabsContent value="sports">
               <SportManagement />
-            </TabsContent>
-
-            <TabsContent value="communities">
-              <CommunityManagement />
-            </TabsContent>
-
-            <TabsContent value="users">
-              <UserManagement />
-            </TabsContent>
-
-            <TabsContent value="volunteers">
-              <VolunteerManagement />
             </TabsContent>
 
             <TabsContent value="calendar">
@@ -119,12 +75,8 @@ export default function AdminDashboard() {
               <TournamentFormatsManagement />
             </TabsContent>
 
-            <TabsContent value="terms">
-              <TermsManagement />
-            </TabsContent>
-
-            <TabsContent value="settings">
-              <SettingsManagement />
+            <TabsContent value="participants">
+              <SportParticipantsTable />
             </TabsContent>
           </div>
         </Tabs>
@@ -147,5 +99,3 @@ function Stat({ title, value }: { title: string; value: number }) {
     </Card>
   );
 }
-
-

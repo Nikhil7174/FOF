@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api";
 import { SportRecord, Convenor } from "@/types";
@@ -12,7 +12,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,7 +42,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Edit, Trash2, ChevronDown, ChevronRight, Upload, FileText } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
 import { SportSelect } from "@/components/ui/sport-select";
 import { useForm } from "react-hook-form";
@@ -80,7 +79,14 @@ const sportSchema = z.object({
     z.number().nullable().optional()
   ),
   rules: z.string().optional(),
+  formatCategory: z.string().optional(),
+  formatTeam: z.string().optional(),
+  formatGender: z.string().optional(),
+  formatGeneral: z.string().optional(),
   notes: z.string().max(500).optional().nullable(),
+  venue: z.string().optional().nullable(),
+  timings: z.string().optional().nullable(),
+  date: z.string().optional().nullable(),
   convenorName: z.string().optional(),
   convenorPhone: z.string()
     .optional()
@@ -109,13 +115,24 @@ const sportSchema = z.object({
 
 type SportFormData = z.infer<typeof sportSchema>;
 
-export function SportManagement() {
+interface SportManagementProps {
+  scopedSportId?: string;
+}
+
+export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
+  const isScoped = Boolean(scopedSportId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSport, setEditingSport] = useState<SportRecord | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [sportToDelete, setSportToDelete] = useState<SportRecord | null>(null);
   const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
   const [incompatibleSportsOpen, setIncompatibleSportsOpen] = useState(false);
+  const [rulesFileUrl, setRulesFileUrl] = useState<string>("");
+  const [rulesFileName, setRulesFileName] = useState<string>("");
+  const [isUploadingRules, setIsUploadingRules] = useState(false);
+  const [formatFileUrl, setFormatFileUrl] = useState<string>("");
+  const [formatFileName, setFormatFileName] = useState<string>("");
+  const [isUploadingFormat, setIsUploadingFormat] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: sports = [], isLoading: isLoadingSports } = useQuery({
@@ -145,7 +162,14 @@ export function SportManagement() {
       ageLimitMin: "" as any,
       ageLimitMax: "" as any,
       rules: "",
+      formatCategory: "",
+      formatTeam: "",
+      formatGender: "",
+      formatGeneral: "",
       notes: "",
+      venue: "",
+      timings: "",
+      date: "",
       convenorName: "",
       convenorPhone: "",
       convenorEmail: "",
@@ -169,7 +193,13 @@ export function SportManagement() {
         adminUsername: data.adminUsername?.trim() && data.adminUsername.trim().length > 0 ? data.adminUsername.trim() : null,
         adminEmail: data.adminEmail?.trim() && data.adminEmail.trim().length > 0 ? data.adminEmail.trim() : null,
         adminPassword: data.adminPassword?.trim() && data.adminPassword.trim().length > 0 ? data.adminPassword.trim() : null,
-        rules: data.rules?.trim() || null,
+        rules: rulesFileUrl ? null : (data.rules?.trim() || null),
+        rulesFileUrl: rulesFileUrl || null,
+        formatCategory: data.formatCategory?.trim() || null,
+        formatTeam: data.formatTeam?.trim() || null,
+        formatGender: data.formatGender?.trim() || null,
+        formatGeneral: data.formatGeneral?.trim() || null,
+        formatFileUrl: formatFileUrl || null,
         notes: data.notes?.trim() && data.notes.trim().length > 0 ? data.notes.trim() : null,
         ...(data.ageLimitMin != null ? { ageLimitMin: data.ageLimitMin } : {}),
         ...(data.ageLimitMax != null ? { ageLimitMax: data.ageLimitMax } : {}),
@@ -203,6 +233,10 @@ export function SportManagement() {
       queryClient.invalidateQueries({ queryKey: ["convenors"] });
       setDialogOpen(false);
       form.reset();
+      setRulesFileUrl("");
+      setRulesFileName("");
+      setFormatFileUrl("");
+      setFormatFileName("");
     },
     onError: (error: any) => {
       console.error("Error creating sport:", error);
@@ -235,8 +269,22 @@ export function SportManagement() {
         sportData.ageLimitMax = data.ageLimitMax;
       }
 
-      if (data.rules !== undefined) sportData.rules = data.rules?.trim() || null;
+      if (rulesFileUrl) {
+        sportData.rules = null;
+        sportData.rulesFileUrl = rulesFileUrl;
+      } else {
+        sportData.rules = data.rules?.trim() || null;
+        sportData.rulesFileUrl = null;
+      }
+      sportData.formatCategory = data.formatCategory?.trim() || null;
+      sportData.formatTeam = data.formatTeam?.trim() || null;
+      sportData.formatGender = data.formatGender?.trim() || null;
+      sportData.formatGeneral = data.formatGeneral?.trim() || null;
+      sportData.formatFileUrl = formatFileUrl || null;
       if (data.notes !== undefined) sportData.notes = data.notes?.trim() && data.notes.trim().length > 0 ? data.notes.trim() : null;
+      if (data.venue !== undefined) sportData.venue = data.venue?.trim() || null;
+      if (data.timings !== undefined) sportData.timings = data.timings?.trim() || null;
+      if (data.date !== undefined) sportData.date = data.date?.trim() ? data.date : null;
       
       // Handle admin email and password
       if (data.adminEmail !== undefined) {
@@ -304,9 +352,16 @@ export function SportManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sports"] });
       queryClient.invalidateQueries({ queryKey: ["convenors"] });
-      setDialogOpen(false);
-      setEditingSport(null);
-      form.reset();
+      queryClient.invalidateQueries({ queryKey: ["sport", scopedSportId] });
+      if (!isScoped) {
+        setDialogOpen(false);
+        setEditingSport(null);
+        form.reset();
+        setRulesFileUrl("");
+        setRulesFileName("");
+        setFormatFileUrl("");
+        setFormatFileName("");
+      }
     },
     onError: (error: any) => {
       console.error("Error updating sport:", error);
@@ -338,6 +393,10 @@ export function SportManagement() {
   const handleOpenDialog = (sport?: SportRecord) => {
     if (sport?.id) {
       setEditingSport(sport);
+      setRulesFileUrl(sport.rulesFileUrl || "");
+      setRulesFileName(sport.rulesFileUrl ? sport.rulesFileUrl.split("/").pop() || "Rules document" : "");
+      setFormatFileUrl(sport.formatFileUrl || "");
+      setFormatFileName(sport.formatFileUrl ? sport.formatFileUrl.split("/").pop() || "Format document" : "");
       const convenor = convenors?.find(c => c?.sportId === sport.id) ?? null;
       form.reset({
         name: sport.name ?? "",
@@ -358,8 +417,15 @@ export function SportManagement() {
             : sport.ageLimit?.max != null
               ? String(sport.ageLimit.max)
               : ("" as any),
-        rules: sport.rules ?? "",
+        rules: sport.rulesFileUrl ? "" : (sport.rules ?? ""),
+        formatCategory: sport.formatCategory ?? "",
+        formatTeam: sport.formatTeam ?? "",
+        formatGender: sport.formatGender ?? "",
+        formatGeneral: sport.formatGeneral ?? "",
         notes: (sport as any).notes ?? "",
+        venue: sport.venue ?? "",
+        timings: sport.timings ?? "",
+        date: sport.date ? new Date(sport.date).toISOString().slice(0, 10) : "",
         convenorName: convenor?.name ?? "",
         convenorPhone: convenor?.phone ?? "",
         convenorEmail: convenor?.email ?? "",
@@ -385,9 +451,88 @@ export function SportManagement() {
       });
     } else {
       setEditingSport(null);
+      setRulesFileUrl("");
+      setRulesFileName("");
+      setFormatFileUrl("");
+      setFormatFileName("");
       form.reset();
     }
     setDialogOpen(true);
+  };
+
+  const handleRulesFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const allowedTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
+    const allowedExtensions = [".pdf", ".doc", ".docx"];
+    const extension = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
+
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(extension)) {
+      alert("Please upload a PDF, DOC, or DOCX file.");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("File size must be less than 10MB.");
+      return;
+    }
+
+    setIsUploadingRules(true);
+    try {
+      const result = await api.uploadSportRulesFile(file);
+      setRulesFileUrl(result.url);
+      setRulesFileName(result.filename);
+      form.setValue("rules", "");
+    } catch (error: any) {
+      alert(error?.message || "Failed to upload rules file.");
+    } finally {
+      setIsUploadingRules(false);
+    }
+  };
+
+  const handleFormatPdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const sportName = isScoped
+      ? editingSport?.name?.trim()
+      : form.getValues("name")?.trim();
+    if (!sportName) {
+      alert(isScoped ? "Assigned sport name is missing." : "Enter the sport name first so the PDF row can be matched.");
+      return;
+    }
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      alert("Please upload a PDF file.");
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      alert("File size must be less than 15MB.");
+      return;
+    }
+
+    setIsUploadingFormat(true);
+    try {
+      const result = await api.uploadSportFormatPdf(file, sportName);
+      setFormatFileUrl(result.url);
+      setFormatFileName(result.filename);
+      form.setValue("formatCategory", result.formatCategory || "");
+      form.setValue("formatTeam", result.formatTeam || "");
+      form.setValue("formatGender", result.formatGender || "");
+      form.setValue("formatGeneral", result.formatGeneral || "");
+    } catch (error: any) {
+      alert(error?.message || "Failed to extract format from PDF.");
+    } finally {
+      setIsUploadingFormat(false);
+    }
   };
 
   const handleSubmit = (data: SportFormData) => {
@@ -396,8 +541,13 @@ export function SportManagement() {
     console.log("Form errors:", form.formState.errors);
     
     // Safety check: ensure required fields are present
-    if (!data.name?.trim()) {
+    if (!isScoped && !data.name?.trim()) {
       alert("Sport name is required");
+      return;
+    }
+
+    if (isScoped && !editingSport?.id) {
+      alert("No sport assigned to edit.");
       return;
     }
 
@@ -422,7 +572,7 @@ export function SportManagement() {
     if (editingSport?.id) {
       console.log("Calling update mutation with id:", editingSport.id);
       updateMutation.mutate({ id: editingSport.id, data: submission });
-    } else {
+    } else if (!isScoped) {
       console.log("Calling create mutation");
       createMutation.mutate(submission);
     }
@@ -464,28 +614,68 @@ export function SportManagement() {
     }
   };
 
+  useEffect(() => {
+    if (!scopedSportId || isLoadingSports) return;
+    const sport = sports.find((s) => s.id === scopedSportId);
+    if (sport && editingSport?.id !== sport.id) {
+      handleOpenDialog(sport);
+      setDialogOpen(true);
+    }
+  }, [scopedSportId, sports, isLoadingSports, editingSport?.id]);
+
+  if (isScoped && !scopedSportId) {
+    return <div className="text-muted-foreground">No sport assigned to your account.</div>;
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Sports Management</h2>
-        <div className="flex gap-2">
-          <ExportButton
-            onExportCSV={() => api.exportSports("csv")}
-            onExportExcel={() => api.exportSports("excel")}
-            disabled={isLoadingSports}
-          />
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => handleOpenDialog()}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Sport
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      {!isScoped ? (
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Sports Management</h2>
+          <div className="flex gap-2">
+            <ExportButton
+              onExportCSV={() => api.exportSports("csv")}
+              onExportExcel={() => api.exportSports("excel")}
+              disabled={isLoadingSports}
+            />
+            <Button
+              onClick={() => {
+                handleOpenDialog();
+                setDialogOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Sport
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <h2 className="text-2xl font-bold">Edit Sport</h2>
+          <p className="text-muted-foreground mt-1">
+            Update sport details, rules, tournament formats, and convenor for your assigned sport.
+          </p>
+        </div>
+      )}
+
+      <Dialog
+        open={isScoped ? true : dialogOpen}
+        onOpenChange={isScoped ? () => undefined : setDialogOpen}
+        modal={!isScoped}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingSport ? "Edit Sport" : "Create New Sport"}</DialogTitle>
+              <DialogTitle>
+                {isScoped
+                  ? editingSport?.name || "Edit Sport"
+                  : editingSport
+                    ? "Edit Sport"
+                    : "Create New Sport"}
+              </DialogTitle>
               <DialogDescription>
-                {editingSport ? "Update the sport details below." : "Fill in the details to create a new sport."}
+                {isScoped || editingSport
+                  ? "Update the sport details below."
+                  : "Fill in the details to create a new sport."}
               </DialogDescription>
             </DialogHeader>
             <form 
@@ -499,6 +689,7 @@ export function SportManagement() {
               }} 
               className="space-y-4"
             >
+              {!isScoped && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Sport Name *</Label>
@@ -523,7 +714,9 @@ export function SportManagement() {
                   </Select>
                 </div>
               </div>
+              )}
 
+              {!isScoped && (
               <div className="space-y-2">
                 <Label htmlFor="parentId">Parent Sport (optional)</Label>
                 <Select
@@ -532,7 +725,6 @@ export function SportManagement() {
                     const newParentId = value === "none" ? null : value;
                     const currentSportId = editingSport?.id;
                     form.setValue("parentId", newParentId);
-                    // Clear incompatible sports if becoming a parent sport WITH children
                     if (!newParentId && currentSportId) {
                       const hasChildren = sports.some((s) => s.parentId === currentSportId);
                       if (hasChildren) {
@@ -555,6 +747,22 @@ export function SportManagement() {
                       ))}
                   </SelectContent>
                 </Select>
+              </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="venue">Venue</Label>
+                  <Input id="venue" {...form.register("venue")} placeholder="e.g. Main Stadium" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="timings">Timings</Label>
+                  <Input id="timings" {...form.register("timings")} placeholder="e.g. 9:00 AM - 5:00 PM" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="date">Date</Label>
+                  <Input id="date" type="date" {...form.register("date")} />
+                </div>
               </div>
 
               <div className="space-y-2 max-w-xs">
@@ -603,14 +811,193 @@ export function SportManagement() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="rules">Rules</Label>
-                <Textarea
-                  id="rules"
-                  {...form.register("rules")}
-                  placeholder="Enter sport rules (supports markdown)"
-                  rows={6}
-                />
+              <div className="space-y-3 border rounded-lg p-4">
+                <div>
+                  <Label className="text-base">Sport Rules</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Use either text rules or a PDF/Doc — not both.
+                  </p>
+                </div>
+
+                {rulesFileUrl ? (
+                  <div className="space-y-2">
+                    <Label>Rules document (PDF / Word)</Label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        href={rulesFileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline max-w-[220px] truncate"
+                      >
+                        <FileText className="h-4 w-4 shrink-0" />
+                        {rulesFileName || "View uploaded file"}
+                      </a>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive border-destructive/40 bg-destructive/5 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive shadow-sm transition-all duration-200 hover:shadow-md"
+                        onClick={() => {
+                          setRulesFileUrl("");
+                          setRulesFileName("");
+                          if (editingSport?.rules) {
+                            form.setValue("rules", editingSport.rules);
+                          }
+                        }}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Remove PDF
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="rules">Rules (text)</Label>
+                      <Textarea
+                        id="rules"
+                        {...form.register("rules")}
+                        placeholder="Enter sport rules — use numbered lines (1. Rule one), **bold titles**, and ALL CAPS section headers"
+                        rows={6}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Tip: paste rules with one item per line. Numbered rules (1., 2., …) display as a formatted list on the public site.
+                      </p>
+                    </div>
+
+                    <div className="relative py-2">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">or</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Upload rules document</Label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isUploadingRules || Boolean(form.watch("rules")?.trim())}
+                          onClick={() => document.getElementById("sport-rules-file-input")?.click()}
+                        >
+                          {isUploadingRules ? (
+                            "Uploading..."
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Upload PDF / DOC
+                            </>
+                          )}
+                        </Button>
+                        <input
+                          id="sport-rules-file-input"
+                          type="file"
+                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                          className="hidden"
+                          onChange={handleRulesFileUpload}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {form.watch("rules")?.trim()
+                          ? "Clear the text rules above before uploading a document."
+                          : "Optional. Max 10MB. Uploading replaces text rules."}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="space-y-3 border rounded-lg p-4">
+                <div>
+                  <Label className="text-base">Tournament Format</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Upload the master formats PDF to auto-fill fields, or enter manually. Shown on the public Sports page.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isUploadingFormat || (!isScoped && !form.watch("name")?.trim())}
+                    onClick={() => document.getElementById("sport-format-file-input")?.click()}
+                  >
+                    {isUploadingFormat ? (
+                      "Extracting..."
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Extract from PDF
+                      </>
+                    )}
+                  </Button>
+                  <input
+                    id="sport-format-file-input"
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    className="hidden"
+                    onChange={handleFormatPdfUpload}
+                  />
+                  {formatFileUrl && (
+                    <>
+                      <a
+                        href={formatFileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline max-w-[220px] truncate"
+                      >
+                        <FileText className="h-4 w-4 shrink-0" />
+                        {formatFileName || "Format PDF"}
+                      </a>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive border-destructive/40 bg-destructive/5 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive shadow-sm transition-all duration-200 hover:shadow-md"
+                        onClick={() => {
+                          setFormatFileUrl("");
+                          setFormatFileName("");
+                        }}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Remove PDF
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+                {!isScoped && !form.watch("name")?.trim() && (
+                  <p className="text-xs text-amber-600">Enter the sport name above before extracting from PDF.</p>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="formatCategory">Category</Label>
+                    <Input id="formatCategory" {...form.register("formatCategory")} placeholder="e.g. U14, 14-39, OVER 40" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="formatTeam">Team</Label>
+                    <Input id="formatTeam" {...form.register("formatTeam")} placeholder="e.g. INDIVIDUAL, TEAM" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="formatGender">Gender</Label>
+                    <Input id="formatGender" {...form.register("formatGender")} placeholder="e.g. MALE & FEMALE" />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="formatGeneral">General Format</Label>
+                    <Textarea
+                      id="formatGeneral"
+                      {...form.register("formatGeneral")}
+                      placeholder="e.g. 6 ASIDE, TENNIS BALL, 6 OVERS PER INNING"
+                      rows={3}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -653,6 +1040,7 @@ export function SportManagement() {
                 </div>
               </div>
 
+              {!isScoped && (
               <div className="space-y-4 border-t pt-4">
                 <Label className="text-base font-semibold">Sports Admin Credentials</Label>
                 <div className="grid grid-cols-1 gap-4">
@@ -695,7 +1083,10 @@ export function SportManagement() {
                   </div>
                 </div>
               </div>
+              )}
 
+              {!isScoped && (
+              <>
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="requiresTeamName"
@@ -717,22 +1108,18 @@ export function SportManagement() {
                   Active
                 </Label>
               </div>
+              </>
+              )}
 
-              {/* Show incompatible sports for sub-sports OR parent sports without children */}
-              {(() => {
+              {!isScoped && (() => {
                 const currentParentId = form.watch("parentId");
                 const currentSportId = editingSport?.id;
-                // For new sports (no editingSport), always show if it's a parent (we'll allow it)
-                // For existing sports, check if it has children
                 if (!currentSportId) {
-                  // New sport: show for both sub-sports and parent sports
                   return true;
                 }
-                // Existing sport: check if it has children
                 const hasChildren = !currentParentId 
                   ? sports.some((s) => s.parentId === currentSportId)
                   : false;
-                // Show if it's a sub-sport (has parentId) OR if it's a parent without children
                 return currentParentId || (!currentParentId && !hasChildren);
               })() && (
                 <div className="space-y-2">
@@ -871,22 +1258,23 @@ export function SportManagement() {
               )}
 
               <DialogFooter>
+                {!isScoped && (
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancel
                 </Button>
+                )}
                 <Button 
                   type="submit" 
                   disabled={createMutation.isPending || updateMutation.isPending}
                 >
-                  {editingSport ? "Update" : "Create"}
+                  {isScoped ? "Save Changes" : editingSport ? "Update" : "Create"}
                 </Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
-        </div>
-      </div>
 
+      {!isScoped && (
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -1027,7 +1415,9 @@ export function SportManagement() {
           </TableBody>
         </Table>
       </div>
+      )}
 
+      {!isScoped && (
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1044,6 +1434,7 @@ export function SportManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      )}
     </div>
   );
 }

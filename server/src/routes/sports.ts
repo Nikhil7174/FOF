@@ -1,12 +1,85 @@
 import { Router, Response } from "express";
 import { z } from "zod";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { prisma } from "../index";
 import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
 import { SportType, Gender, Role } from "@prisma/client";
 import { hashPassword } from "../utils/password";
 import { sendExport } from "../utils/export";
+import { extractTextFromPdfBuffer, parseAllFormatsFromText, parseFormatForSport } from "../utils/parseFormatsPdf";
+import { assertSportEditAccess } from "../utils/sportAccess";
 
 const router = Router();
+
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const rulesFileStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname).toLowerCase() || ".pdf";
+    cb(null, `rules-${uniqueSuffix}${ext}`);
+  },
+});
+
+const rulesFileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedMimes = [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ];
+  const allowedExts = [".pdf", ".doc", ".docx"];
+  const ext = path.extname(file.originalname).toLowerCase();
+
+  if (allowedMimes.includes(file.mimetype) || allowedExts.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Invalid file type. Only PDF, DOC, and DOCX files are allowed."));
+  }
+};
+
+const uploadRulesFile = multer({
+  storage: rulesFileStorage,
+  fileFilter: rulesFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+  },
+});
+
+const formatPdfStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname).toLowerCase() || ".pdf";
+    cb(null, `format-${uniqueSuffix}${ext}`);
+  },
+});
+
+const formatPdfFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (file.mimetype === "application/pdf" || ext === ".pdf") {
+    cb(null, true);
+  } else {
+    cb(new Error("Invalid file type. Only PDF files are allowed for format extraction."));
+  }
+};
+
+const uploadFormatPdf = multer({
+  storage: formatPdfStorage,
+  fileFilter: formatPdfFilter,
+  limits: {
+    fileSize: 15 * 1024 * 1024,
+  },
+});
 
 const usernameFormatSchema = z
   .string()
@@ -34,6 +107,12 @@ const createSportSchema = z.object({
     .nullable()
     .optional(),
   rules: z.string().optional().nullable(),
+  rulesFileUrl: z.string().url().optional().nullable().or(z.literal("")),
+  formatCategory: z.string().optional().nullable(),
+  formatTeam: z.string().optional().nullable(),
+  formatGender: z.string().optional().nullable(),
+  formatGeneral: z.string().optional().nullable(),
+  formatFileUrl: z.string().url().optional().nullable().or(z.literal("")),
   notes: z.string().max(500).optional().nullable(),
   adminUsername: usernameFormatSchema.optional().nullable(),
   adminEmail: z.string().email().optional().nullable(),
@@ -70,6 +149,18 @@ function resolveAgeLimits(data: {
   }
 
   return resolved;
+}
+
+function resolveRulesFields(data: {
+  rules?: string | null;
+  rulesFileUrl?: string | null;
+}): { rules: string | null; rulesFileUrl: string | null } {
+  const rulesFileUrl = data.rulesFileUrl && data.rulesFileUrl !== "" ? data.rulesFileUrl : null;
+  if (rulesFileUrl) {
+    return { rules: null, rulesFileUrl };
+  }
+  const rules = data.rules?.trim() ? data.rules.trim() : null;
+  return { rules, rulesFileUrl: null };
 }
 
 async function syncSportAdminUser(options: {
@@ -218,8 +309,148 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Upload sport rules document (PDF/DOC/DOCX)
+router.post(
+  "/upload-rules",
+  authenticate,
+  requireRole("admin", "sports_super_admin"),
+  uploadRulesFile.single("file"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No rules file provided" });
+      }
+
+      const protocol = req.protocol;
+      const host = req.get("host");
+      const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+
+      res.json({
+        url: fileUrl,
+        filename: req.file.originalname,
+      });
+    } catch (error: any) {
+      if (req.file) {
+        const filePath = path.join(uploadsDir, req.file.filename);
+        fs.unlink(filePath, (err) => {
+          if (err) console.error("Error deleting file:", err);
+        });
+      }
+      res.status(500).json({ error: error.message || "Failed to upload rules file" });
+    }
+  }
+);
+
+function buildUploadUrl(req: AuthRequest, filename: string): string {
+  const protocol = req.protocol;
+  const host = req.get("host");
+  return `${protocol}://${host}/uploads/${filename}`;
+}
+
+// Upload & extract tournament format from PDF for a single sport
+router.post(
+  "/upload-format-pdf",
+  authenticate,
+  requireRole("admin", "sports_super_admin"),
+  uploadFormatPdf.single("file"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No PDF file provided" });
+      }
+
+      const sportName = (req.body.sportName as string | undefined)?.trim();
+      if (!sportName) {
+        return res.status(400).json({ error: "Sport name is required for format extraction" });
+      }
+
+      const buffer = fs.readFileSync(req.file.path);
+      const text = await extractTextFromPdfBuffer(buffer);
+      const parsed = parseFormatForSport(text, sportName);
+
+      if (!parsed) {
+        return res.status(404).json({
+          error: `Could not find format row for "${sportName}" in the uploaded PDF. Check the sport name matches the document.`,
+        });
+      }
+
+      res.json({
+        url: buildUploadUrl(req, req.file.filename),
+        filename: req.file.originalname,
+        formatCategory: parsed.category,
+        formatTeam: parsed.team,
+        formatGender: parsed.gender,
+        formatGeneral: parsed.generalFormat,
+      });
+    } catch (error: any) {
+      if (req.file) {
+        fs.unlink(path.join(uploadsDir, req.file.filename), () => undefined);
+      }
+      res.status(500).json({ error: error.message || "Failed to extract format from PDF" });
+    }
+  }
+);
+
+// Import tournament formats from master PDF for all matching sports
+router.post(
+  "/import-formats-pdf",
+  authenticate,
+  requireRole("admin", "sports_super_admin"),
+  uploadFormatPdf.single("file"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No PDF file provided" });
+      }
+
+      const sports = await prisma.sport.findMany({ select: { id: true, name: true } });
+      const buffer = fs.readFileSync(req.file.path);
+      const text = await extractTextFromPdfBuffer(buffer);
+      const parsedFormats = parseAllFormatsFromText(
+        text,
+        sports.map((s) => s.name)
+      );
+
+      const fileUrl = buildUploadUrl(req, req.file.filename);
+      let updated = 0;
+      const matched: string[] = [];
+
+      for (const parsed of parsedFormats) {
+        const sport = sports.find((s) => s.name.toUpperCase() === parsed.sportName.toUpperCase());
+        if (!sport) continue;
+
+        await prisma.sport.update({
+          where: { id: sport.id },
+          data: {
+            formatCategory: parsed.category || null,
+            formatTeam: parsed.team || null,
+            formatGender: parsed.gender || null,
+            formatGeneral: parsed.generalFormat || null,
+            formatFileUrl: fileUrl,
+          },
+        });
+        updated += 1;
+        matched.push(sport.name);
+      }
+
+      res.json({
+        url: fileUrl,
+        filename: req.file.originalname,
+        updated,
+        matched,
+        totalParsed: parsedFormats.length,
+      });
+    } catch (error: any) {
+      if (req.file) {
+        fs.unlink(path.join(uploadsDir, req.file.filename), () => undefined);
+      }
+      res.status(500).json({ error: error.message || "Failed to import formats from PDF" });
+    }
+  }
+);
+
 // Create sport
-router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+router.post("/", authenticate, requireRole("admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const data = createSportSchema.parse(req.body);
 
@@ -259,6 +490,7 @@ router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req:
     }
 
     const ageLimits = resolveAgeLimits(data);
+    const rulesFields = resolveRulesFields(data);
 
     const sport = await prisma.sport.create({
       data: {
@@ -273,7 +505,13 @@ router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req:
         gender: data.gender as Gender | null,
         ageLimitMin: ageLimits.ageLimitMin,
         ageLimitMax: ageLimits.ageLimitMax,
-        rules: data.rules,
+        rules: rulesFields.rules,
+        rulesFileUrl: rulesFields.rulesFileUrl,
+        formatCategory: data.formatCategory || null,
+        formatTeam: data.formatTeam || null,
+        formatGender: data.formatGender || null,
+        formatGeneral: data.formatGeneral || null,
+        formatFileUrl: data.formatFileUrl && data.formatFileUrl !== "" ? data.formatFileUrl : null,
         notes: data.notes,
         adminUsername,
         adminEmail: data.adminEmail || null,
@@ -317,9 +555,10 @@ router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req:
 });
 
 // Update sport
-router.patch("/:id", authenticate, requireRole("admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+router.patch("/:id", authenticate, requireRole("admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    assertSportEditAccess(req, id);
     const data = createSportSchema.partial().parse(req.body);
 
     // Parse date if provided
@@ -382,6 +621,14 @@ router.patch("/:id", authenticate, requireRole("admin", "sports_admin"), async (
     if (ageLimits.ageLimitMax !== undefined) {
       updateData.ageLimitMax = ageLimits.ageLimitMax;
     }
+    if (data.rules !== undefined || data.rulesFileUrl !== undefined) {
+      const rulesFields = resolveRulesFields({
+        rules: data.rules,
+        rulesFileUrl: data.rulesFileUrl,
+      });
+      updateData.rules = rulesFields.rules;
+      updateData.rulesFileUrl = rulesFields.rulesFileUrl;
+    }
     // Only include date in update if it was explicitly provided
     if (data.date !== undefined) {
       updateData.date = date;
@@ -439,16 +686,21 @@ router.patch("/:id", authenticate, requireRole("admin", "sports_admin"), async (
       } as any,
     });
 
-    await syncSportAdminUser({
-      sportId: sport.id,
-      adminUsername: (sport as any).adminUsername,
-      adminEmail: sport.adminEmail,
-      hashedPassword: hashedAdminPassword || null,
-      passwordProvided: Boolean(data.adminPassword),
-    });
+    if (req.user!.role === "admin" || req.user!.role === "sports_super_admin") {
+      await syncSportAdminUser({
+        sportId: sport.id,
+        adminUsername: (sport as any).adminUsername,
+        adminEmail: sport.adminEmail,
+        hashedPassword: hashedAdminPassword || null,
+        passwordProvided: Boolean(data.adminPassword),
+      });
+    }
 
     res.json(sport);
   } catch (error: any) {
+    if (error.status === 403) {
+      return res.status(403).json({ error: error.message || "Forbidden" });
+    }
     if (error.name === "ZodError") {
       return res.status(400).json({ error: "Invalid input", details: error.errors });
     }
@@ -466,9 +718,10 @@ router.patch("/:id", authenticate, requireRole("admin", "sports_admin"), async (
 });
 
 // Delete sport
-router.delete("/:id", authenticate, requireRole("admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+router.delete("/:id", authenticate, requireRole("admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    assertSportEditAccess(req, id);
 
     // Delete children first (cascade should handle this, but let's be explicit)
     await prisma.sport.deleteMany({
@@ -490,7 +743,7 @@ router.delete("/:id", authenticate, requireRole("admin", "sports_admin"), async 
 });
 
 // Export sports
-router.get("/export/:format", authenticate, requireRole("admin"), async (req: AuthRequest, res: Response) => {
+router.get("/export/:format", authenticate, requireRole("admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { format } = req.params;
     if (!["csv", "excel"].includes(format)) {

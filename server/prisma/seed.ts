@@ -391,6 +391,19 @@ async function main() {
     },
   });
 
+  const footballSuperPassword = await hashPassword("footballsuper");
+  await prisma.user.upsert({
+    where: { id: "ss1" },
+    update: { role: Role.sports_super_admin, sportId: null },
+    create: {
+      id: "ss1",
+      username: "footballsuper",
+      email: "football-super@fof.co.ke",
+      password: footballSuperPassword,
+      role: Role.sports_super_admin,
+    },
+  });
+
   const basketballPassword = await hashPassword("basketball");
   await prisma.user.upsert({
     where: { id: "s2" },

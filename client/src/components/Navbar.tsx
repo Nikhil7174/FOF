@@ -110,6 +110,8 @@ function getDashboardRoute(role: string): string | null {
       return "/community";
     case "sports_admin":
       return "/sports-admin";
+    case "sports_super_admin":
+      return "/sports-super-admin";
     case "volunteer_admin":
       return "/volunteer-admin";
     case "user":

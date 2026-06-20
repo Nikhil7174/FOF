@@ -49,7 +49,12 @@ const calendarItemSchema = z.object({
 
 type CalendarItemFormData = z.infer<typeof calendarItemSchema>;
 
-export function CalendarManagement() {
+interface CalendarManagementProps {
+  scopedSportId?: string;
+}
+
+export function CalendarManagement({ scopedSportId }: CalendarManagementProps = {}) {
+  const isScoped = Boolean(scopedSportId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<CalendarItem | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -115,6 +120,10 @@ export function CalendarManagement() {
     },
   });
 
+  const scopedItems = isScoped && scopedSportId
+    ? calendarItems.filter((item) => item.sportId === scopedSportId)
+    : calendarItems;
+
   const handleOpenDialog = (item?: CalendarItem) => {
     if (item) {
       setEditingItem(item);
@@ -128,16 +137,23 @@ export function CalendarManagement() {
       });
     } else {
       setEditingItem(null);
-      form.reset();
+      form.reset({
+        sportId: scopedSportId || "",
+        date: "",
+        time: "",
+        venue: "",
+        type: "",
+      });
     }
     setDialogOpen(true);
   };
 
   const handleSubmit = (data: CalendarItemFormData) => {
+    const payload = isScoped && scopedSportId ? { ...data, sportId: scopedSportId } : data;
     if (editingItem) {
-      updateMutation.mutate({ id: editingItem.id, data });
+      updateMutation.mutate({ id: editingItem.id, data: payload });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(payload);
     }
   };
 
@@ -167,7 +183,9 @@ export function CalendarManagement() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Sports Calendar Management</h2>
+        <h2 className="text-2xl font-bold">
+          {isScoped ? "Sport Calendar" : "Sports Calendar Management"}
+        </h2>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => handleOpenDialog()}>
@@ -183,23 +201,25 @@ export function CalendarManagement() {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="sportId">Sport *</Label>
-                <Controller
-                  name="sportId"
-                  control={form.control}
-                  render={({ field }) => (
-                    <SportSelect
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      placeholder="Select a sport"
-                    />
+              {!isScoped && (
+                <div className="space-y-2">
+                  <Label htmlFor="sportId">Sport *</Label>
+                  <Controller
+                    name="sportId"
+                    control={form.control}
+                    render={({ field }) => (
+                      <SportSelect
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder="Select a sport"
+                      />
+                    )}
+                  />
+                  {form.formState.errors.sportId && (
+                    <p className="text-sm text-destructive">{form.formState.errors.sportId.message}</p>
                   )}
-                />
-                {form.formState.errors.sportId && (
-                  <p className="text-sm text-destructive">{form.formState.errors.sportId.message}</p>
-                )}
-              </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -251,7 +271,7 @@ export function CalendarManagement() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Sport</TableHead>
+              {!isScoped && <TableHead>Sport</TableHead>}
               <TableHead>Date</TableHead>
               <TableHead>Time</TableHead>
               <TableHead>Venue</TableHead>
@@ -271,18 +291,20 @@ export function CalendarManagement() {
                   <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
                 </TableRow>
               ))
-            ) : calendarItems.length === 0 ? (
+            ) : scopedItems.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                <TableCell colSpan={isScoped ? 5 : 6} className="text-center text-muted-foreground">
                   No calendar items found. Create one to get started.
                 </TableCell>
               </TableRow>
             ) : (
-              calendarItems.map((item) => {
+              scopedItems.map((item) => {
                 const date = new Date(item.date);
                 return (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium">{getSportName(item.sportId)}</TableCell>
+                    {!isScoped && (
+                      <TableCell className="font-medium">{getSportName(item.sportId)}</TableCell>
+                    )}
                     <TableCell>{date.toLocaleDateString()}</TableCell>
                     <TableCell>{item.time}</TableCell>
                     <TableCell>{item.venue}</TableCell>

@@ -19,13 +19,14 @@ import { Footer } from "./components/Footer";
 import AdminDashboard from "./pages/admin/Dashboard";
 import CommunityAdmin from "./pages/admin/CommunityAdmin";
 import SportsAdmin from "./pages/admin/SportsAdmin";
+import SportsSuperAdmin from "./pages/admin/SportsSuperAdmin";
 import VolunteerAdmin from "./pages/admin/VolunteerAdmin";
 import UserDashboard from "./pages/user/Dashboard";
 import Leaderboard from "./pages/Leaderboard";
 import { Analytics } from '@vercel/analytics/react';
 
 // Minimal protected route gate by role
-function ProtectedRoute({ children, role }: { children: React.ReactNode; role: "admin" | "community_admin" | "sports_admin" | "volunteer_admin" }) {
+function ProtectedRoute({ children, role }: { children: React.ReactNode; role: "admin" | "community_admin" | "sports_admin" | "sports_super_admin" | "volunteer_admin" }) {
   const { user, loading } = useAuth();
   if (loading) {
     return (
@@ -77,6 +78,7 @@ function GuestRoute({ children }: { children: React.ReactNode }) {
     if (user.role === "admin") return <Navigate to="/admin" replace />;
     if (user.role === "community_admin") return <Navigate to="/community" replace />;
     if (user.role === "sports_admin") return <Navigate to="/sports-admin" replace />;
+    if (user.role === "sports_super_admin") return <Navigate to="/sports-super-admin" replace />;
     if (user.role === "volunteer_admin") return <Navigate to="/volunteer-admin" replace />;
     if (user.role === "user" || user.role === "volunteer") return <Navigate to="/dashboard" replace />;
     return <Navigate to="/" replace />;
@@ -110,6 +112,7 @@ const App = () => (
             <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
             <Route path="/community" element={<ProtectedRoute role="community_admin"><CommunityAdmin /></ProtectedRoute>} />
             <Route path="/sports-admin" element={<ProtectedRoute role="sports_admin"><SportsAdmin /></ProtectedRoute>} />
+            <Route path="/sports-super-admin" element={<ProtectedRoute role="sports_super_admin"><SportsSuperAdmin /></ProtectedRoute>} />
             <Route path="/volunteer-admin" element={<ProtectedRoute role="volunteer_admin"><VolunteerAdmin /></ProtectedRoute>} />
             <Route path="/dashboard" element={<AuthProtectedRoute><UserDashboard /></AuthProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

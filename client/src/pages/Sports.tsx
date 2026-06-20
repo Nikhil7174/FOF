@@ -1,7 +1,9 @@
 import { Navbar } from "@/components/Navbar";
+import { SportRulesContent } from "@/components/SportRulesContent";
+import { SportFormatContent, hasSportFormat } from "@/components/SportFormatContent";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, Phone, Mail, BookOpen } from "lucide-react";
+import { Trophy, Phone, Mail, BookOpen, LayoutGrid } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api";
@@ -18,12 +20,8 @@ export default function Sports() {
     queryFn: api.listSports,
   });
 
-  const { data: formats = [], isLoading: isLoadingFormats } = useQuery({
-    queryKey: ["tournament-formats"],
-    queryFn: api.listTournamentFormats,
-  });
-
-  const sportsWithRules = sports.filter(s => s.rules);
+  const sportsWithRules = sports.filter((s) => s.rules?.trim() || s.rulesFileUrl);
+  const sportsWithFormats = sports.filter((s) => hasSportFormat(s));
 
   return (
     <div className="min-h-screen bg-background">
@@ -122,9 +120,7 @@ export default function Sports() {
                           {sport.name}
                         </AccordionTrigger>
                         <AccordionContent>
-                          <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap">
-                            {sport.rules}
-                          </div>
+                          <SportRulesContent rules={sport.rules} rulesFileUrl={sport.rulesFileUrl} />
                         </AccordionContent>
                       </AccordionItem>
                     ))}
@@ -135,46 +131,39 @@ export default function Sports() {
           </TabsContent>
 
           <TabsContent value="formats" className="mt-6">
-            {isLoadingFormats ? (
-              <Card>
-                <CardHeader>
-                  <Skeleton className="h-6 w-48" />
-                  <Skeleton className="h-4 w-64 mt-2" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-24 w-full mb-4" />
-                  <Skeleton className="h-24 w-full mb-4" />
-                  <Skeleton className="h-24 w-full" />
-                </CardContent>
-              </Card>
-            ) : formats.length === 0 ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Tournament Formats</CardTitle>
-                  <CardDescription>Competition structure for each sport</CardDescription>
-                </CardHeader>
-                <CardContent>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <LayoutGrid className="h-5 w-5 text-primary" />
+                  Tournament Formats
+                </CardTitle>
+                <CardDescription>Expand any sport to view its competition format</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingSports ? (
+                  <div className="space-y-4">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <Skeleton key={i} className="h-12 w-full" />
+                    ))}
+                  </div>
+                ) : sportsWithFormats.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">No tournament formats found.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Tournament Formats</CardTitle>
-                  <CardDescription>Competition structure for each sport</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {formats.map((format) => (
-                    <div key={format.id}>
-                      <h3 className="font-semibold text-lg mb-2">{format.title}</h3>
-                      <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap">
-                        {format.content}
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
+                ) : (
+                  <Accordion type="multiple" className="w-full">
+                    {sportsWithFormats.map((sport) => (
+                      <AccordionItem key={sport.id} value={`format-${sport.id}`}>
+                        <AccordionTrigger className="text-left">
+                          {sport.name}
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <SportFormatContent sport={sport} />
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

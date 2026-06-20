@@ -1,6 +1,6 @@
 // Shared types for the application
 
-export type Role = "admin" | "community_admin" | "sports_admin" | "volunteer_admin" | "volunteer" | "user" | null;
+export type Role = "admin" | "community_admin" | "sports_admin" | "sports_super_admin" | "volunteer_admin" | "volunteer" | "user" | null;
 
 export interface User {
   id: string;
@@ -60,6 +60,16 @@ export interface ParticipantStats {
   bySportId: Record<string, { registered: number; accepted: number }>;
 }
 
+export interface CommunitySportMatrix {
+  sports: Array<{ id: string; name: string; columnKey: string }>;
+  communities: Array<{ id: string; name: string }>;
+  rows: Array<{
+    communityId: string;
+    communityName: string;
+    counts: Record<string, number>;
+  }>;
+}
+
 export interface SportRecord {
   id: string;
   name: string;
@@ -78,6 +88,12 @@ export interface SportRecord {
   ageLimitMin?: number; // Alternative format
   ageLimitMax?: number; // Alternative format
   rules?: string;
+  rulesFileUrl?: string | null;
+  formatCategory?: string | null;
+  formatTeam?: string | null;
+  formatGender?: string | null;
+  formatGeneral?: string | null;
+  formatFileUrl?: string | null;
   notes?: string | null;
   adminUsername?: string | null;
   adminEmail?: string | null;

@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../index";
 import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
+import { assertSportEditAccess } from "../utils/sportAccess";
 
 const router = Router();
 
@@ -52,11 +53,11 @@ router.get("/:id", authenticate, async (req: AuthRequest, res: Response) => {
 });
 
 // Create calendar item
-router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+router.post("/", authenticate, requireRole("admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const data = createCalendarItemSchema.parse(req.body);
+    assertSportEditAccess(req, data.sportId);
 
-    // Parse date if provided
     let date: Date;
     if (typeof data.date === "string") {
       date = new Date(data.date);
@@ -64,7 +65,6 @@ router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req:
       date = data.date;
     }
 
-    // Verify sport exists
     const sport = await prisma.sport.findUnique({
       where: { id: data.sportId },
     });
@@ -88,6 +88,9 @@ router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req:
 
     res.status(201).json(calendarItem);
   } catch (error: any) {
+    if (error.status === 403) {
+      return res.status(403).json({ error: error.message || "Forbidden" });
+    }
     if (error.name === "ZodError") {
       return res.status(400).json({ error: "Invalid input", details: error.errors });
     }
@@ -96,10 +99,18 @@ router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req:
 });
 
 // Update calendar item
-router.patch("/:id", authenticate, requireRole("admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+router.patch("/:id", authenticate, requireRole("admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const data = createCalendarItemSchema.partial().parse(req.body);
+
+    const existing = await prisma.calendarItem.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Calendar item not found" });
+    }
+
+    const targetSportId = data.sportId ?? existing.sportId;
+    assertSportEditAccess(req, targetSportId);
 
     const updateData: any = { ...data };
     if (data.date !== undefined) {
@@ -116,6 +127,9 @@ router.patch("/:id", authenticate, requireRole("admin", "sports_admin"), async (
 
     res.json(calendarItem);
   } catch (error: any) {
+    if (error.status === 403) {
+      return res.status(403).json({ error: error.message || "Forbidden" });
+    }
     if (error.name === "ZodError") {
       return res.status(400).json({ error: "Invalid input", details: error.errors });
     }
@@ -127,9 +141,16 @@ router.patch("/:id", authenticate, requireRole("admin", "sports_admin"), async (
 });
 
 // Delete calendar item
-router.delete("/:id", authenticate, requireRole("admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+router.delete("/:id", authenticate, requireRole("admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+
+    const existing = await prisma.calendarItem.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Calendar item not found" });
+    }
+
+    assertSportEditAccess(req, existing.sportId);
 
     await prisma.calendarItem.delete({
       where: { id },
@@ -137,6 +158,9 @@ router.delete("/:id", authenticate, requireRole("admin", "sports_admin"), async 
 
     res.json({ success: true });
   } catch (error: any) {
+    if (error.status === 403) {
+      return res.status(403).json({ error: error.message || "Forbidden" });
+    }
     if (error.code === "P2025") {
       return res.status(404).json({ error: "Calendar item not found" });
     }
@@ -166,7 +190,6 @@ router.get("/timing", authenticate, async (req: AuthRequest, res: Response) => {
 // List draws (placeholder - can be extended later)
 router.get("/draws", authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    // Placeholder implementation
     res.json([
       { sportId: "1", url: "https://example.com/draws/football.pdf" },
       { sportId: "2", url: "https://example.com/draws/basketball.pdf" },
@@ -177,6 +200,3 @@ router.get("/draws", authenticate, async (req: AuthRequest, res: Response) => {
 });
 
 export default router;
-
-
-

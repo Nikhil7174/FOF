@@ -38,6 +38,7 @@ export default function Login() {
       if (role === "admin") navigate("/admin");
       else if (role === "community_admin") navigate("/community");
       else if (role === "sports_admin") navigate("/sports-admin");
+      else if (role === "sports_super_admin") navigate("/sports-super-admin");
       else if (role === "volunteer_admin") navigate("/volunteer-admin");
       else navigate("/");
     } catch (err: any) {

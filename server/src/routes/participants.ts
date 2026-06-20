@@ -6,10 +6,16 @@ import path from "path";
 import fs from "fs";
 import { prisma } from "../index";
 import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
+import { filterByAssignedSport, isSportsRepRole } from "../utils/sportAccess";
 import { ParticipantStatus, Gender, Role, Prisma } from "@prisma/client";
 import { hashPassword } from "../utils/password";
 import { sendEmail } from "../utils/email";
 import { sendExport } from "../utils/export";
+import {
+  buildCommunitySportMatrix,
+  matrixToSheetRows,
+  parseMatrixStatus,
+} from "../utils/communitySportMatrix";
 
 const router = Router();
 
@@ -119,8 +125,126 @@ router.get("/stats", async (_req: AuthRequest, res: Response) => {
   }
 });
 
-// List all participants (admin, community_admin, sports_admin)
-router.get("/", authenticate, requireRole("admin", "community_admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+async function fetchCommunitySportMatrixData(statusFilter?: ParticipantStatus) {
+  const participantWhere: Prisma.ParticipantWhereInput = {};
+  if (statusFilter) {
+    participantWhere.status = statusFilter;
+  }
+
+  const [sports, communities, participantSports] = await Promise.all([
+    prisma.sport.findMany({
+      select: { id: true, name: true, active: true, parentId: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.community.findMany({
+      select: { id: true, name: true, active: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.participantSport.findMany({
+      where: {
+        participant: participantWhere,
+      },
+      select: {
+        sportId: true,
+        participant: { select: { communityId: true } },
+      },
+    }),
+  ]);
+
+  return buildCommunitySportMatrix({
+    sports,
+    communities,
+    participantSports: participantSports.map((ps) => ({
+      sportId: ps.sportId,
+      communityId: ps.participant.communityId,
+    })),
+  });
+}
+
+// Community vs Sport matrix (admin overview)
+router.get(
+  "/community-sport-matrix",
+  authenticate,
+  requireRole("admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const status = parseMatrixStatus(req.query.status);
+      const matrix = await fetchCommunitySportMatrixData(status);
+      res.json(matrix);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch community sport matrix" });
+    }
+  }
+);
+
+// Export community vs sport matrix
+router.get(
+  "/export/community-sport-matrix/:format",
+  authenticate,
+  requireRole("admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { format } = req.params;
+      if (!["csv", "excel"].includes(format)) {
+        return res.status(400).json({ error: "Invalid format. Use 'csv' or 'excel'" });
+      }
+
+      const status = parseMatrixStatus(req.query.status);
+      const matrix = await fetchCommunitySportMatrixData(status);
+      const sheetRows = matrixToSheetRows(matrix);
+
+      if (format === "csv") {
+        const csv = sheetRows
+          .map((row) =>
+            row
+              .map((cell) => {
+                const value = String(cell);
+                if (value.includes(",") || value.includes("\n") || value.includes('"')) {
+                  return `"${value.replace(/"/g, '""')}"`;
+                }
+                return value;
+              })
+              .join(",")
+          )
+          .join("\n");
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader(
+          "Content-Disposition",
+          'attachment; filename="community-vs-sport.csv"'
+        );
+        return res.send(csv);
+      }
+
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.aoa_to_sheet(sheetRows);
+      worksheet["!cols"] = sheetRows[0].map((header, index) => ({
+        wch: Math.min(
+          Math.max(
+            String(header).length,
+            ...sheetRows.slice(1).map((row) => String(row[index] ?? "").length)
+          ),
+          40
+        ),
+      }));
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Community vs Sport");
+      const buffer = Buffer.from(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }));
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        'attachment; filename="community-vs-sport.xlsx"'
+      );
+      res.send(buffer);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to export community sport matrix" });
+    }
+  }
+);
+
+// List all participants (admin, community_admin, sports_admin, sports_super_admin)
+router.get("/", authenticate, requireRole("admin", "community_admin", "sports_admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const where: any = {};
     
@@ -157,11 +281,9 @@ router.get("/", authenticate, requireRole("admin", "community_admin", "sports_ad
       });
     }
 
-    // Sports admins can only see participants registered for their sport
-    if (req.user!.role === "sports_admin" && req.user!.sportId) {
-      const filtered = participantsWithPending.filter((p: any) => 
-        p.sports.some((ps: any) => ps.sportId === req.user!.sportId)
-      );
+    // Sports roles can only see participants registered for their sport
+    if (isSportsRepRole(req.user!.role) && req.user!.sportId) {
+      const filtered = filterByAssignedSport(participantsWithPending, req.user!.sportId);
       return res.json(filtered);
     }
 
@@ -319,7 +441,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
 });
 
 // Update participant status
-router.patch("/:id/status", authenticate, requireRole("admin", "community_admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+router.patch("/:id/status", authenticate, requireRole("admin", "community_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -349,15 +471,6 @@ router.patch("/:id/status", authenticate, requireRole("admin", "community_admin"
       return res.status(403).json({ error: "Access denied" });
     }
 
-    // Sports admins can only update participants registered for their sport
-    if (req.user!.role === "sports_admin" && req.user!.sportId) {
-      const hasSport = participant.sports.some((ps: any) => ps.sportId === req.user!.sportId);
-      if (!hasSport) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-    }
-
-    // If accepting and there are pending sports, apply them
     let updateData: any = { status: status as ParticipantStatus };
     
     if (status === "accepted" && participant.pendingSports) {
@@ -655,7 +768,7 @@ router.patch("/me/sports", authenticate, async (req: AuthRequest, res: Response)
 });
 
 // Delete participant
-router.delete("/:id", authenticate, requireRole("admin", "community_admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+router.delete("/:id", authenticate, requireRole("admin", "community_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -677,14 +790,6 @@ router.delete("/:id", authenticate, requireRole("admin", "community_admin", "spo
     // Community admins can only delete their community's participants
     if (req.user!.role === "community_admin" && participant.communityId !== req.user!.communityId) {
       return res.status(403).json({ error: "Access denied" });
-    }
-
-    // Sports admins can only delete participants registered for their sport
-    if (req.user!.role === "sports_admin" && req.user!.sportId) {
-      const hasSport = participant.sports.some((ps: any) => ps.sportId === req.user!.sportId);
-      if (!hasSport) {
-        return res.status(403).json({ error: "Access denied" });
-      }
     }
 
     await prisma.participant.delete({
@@ -1294,7 +1399,7 @@ router.post(
 );
 
 // Export participants
-router.get("/export/:format", authenticate, requireRole("admin", "community_admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+router.get("/export/:format", authenticate, requireRole("admin", "community_admin", "sports_admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { format } = req.params;
     if (!["csv", "excel"].includes(format)) {
@@ -1321,12 +1426,10 @@ router.get("/export/:format", authenticate, requireRole("admin", "community_admi
       orderBy: { createdAt: "desc" },
     });
 
-    // Sports admins can only see participants registered for their sport
+    // Sports roles can only export participants registered for their sport
     let filteredParticipants = participants;
-    if (req.user!.role === "sports_admin" && req.user!.sportId) {
-      filteredParticipants = participants.filter((p: any) => 
-        p.sports.some((ps: any) => ps.sportId === req.user!.sportId)
-      );
+    if (isSportsRepRole(req.user!.role) && req.user!.sportId) {
+      filteredParticipants = filterByAssignedSport(participants, req.user!.sportId);
     }
 
     const exportData = filteredParticipants.map((p: any) => {
@@ -1371,7 +1474,7 @@ router.get("/export/:format", authenticate, requireRole("admin", "community_admi
     
     const filename = req.user!.role === "community_admin" 
       ? `participants-community-${req.user!.communityId}`
-      : req.user!.role === "sports_admin"
+      : isSportsRepRole(req.user!.role)
       ? `participants-sport-${req.user!.sportId}`
       : "participants";
     

@@ -46,7 +46,10 @@ Choose one of these options:
 Create a `.env` file in the `server` directory:
 
 ```env
-DATABASE_URL="postgresql://user:password@host:5432/dbname"
+# Pooled URL for the running API (Neon: host contains -pooler; Supabase: port 6543 + ?pgbouncer=true)
+DATABASE_URL="postgresql://user:password@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require&connection_limit=5"
+# Direct URL for migrations only (Neon: host without -pooler; Supabase: port 5432)
+DIRECT_URL="postgresql://user:password@ep-xxx.region.aws.neon.tech/neondb?sslmode=require"
 JWT_SECRET="your-secret-key-change-in-production"
 PORT=3000
 NODE_ENV="development"
@@ -205,11 +208,10 @@ server/
 
 1. Create a new Web Service on Render
 2. Connect your GitHub repository
-3. Set build command: `npm install && npm run build`
-4. Set start command: `npm start`
-5. Add environment variables
-6. Add PostgreSQL database service
-7. Set `DATABASE_URL` environment variable
+3. Set root directory to `server`
+4. Set build command: `yarn install && yarn prisma:generate && yarn build`
+5. Set start command: `yarn start` (runs `prisma migrate deploy` then starts the server)
+6. Add environment variables (see below)
 
 ### Vercel
 
@@ -217,7 +219,8 @@ Note: Vercel is primarily for serverless functions. For a full Express app, cons
 
 ## Environment Variables
 
-- `DATABASE_URL` - PostgreSQL connection string (required)
+- `DATABASE_URL` - **Pooled** PostgreSQL URL for the API at runtime (required)
+- `DIRECT_URL` - **Direct** PostgreSQL URL for `prisma migrate` / `migrate deploy` (required on Neon/Supabase with pooling)
 - `JWT_SECRET` - Secret key for JWT tokens (required)
 - `PORT` - Server port (default: 3000)
 - `NODE_ENV` - Environment (development/production)
@@ -231,6 +234,9 @@ Note: Vercel is primarily for serverless functions. For a full Express app, cons
 - For cloud databases, ensure your IP is whitelisted (if required)
 
 ### Migration Issues
+- **Neon / Supabase:** Use `DIRECT_URL` (non-pooler) for migrations; use pooled `DATABASE_URL` for the app. Running migrations only through a transaction pooler often fails or leaves schema out of date.
+- Check pending migrations: `yarn prisma migrate status`
+- Apply to production DB: `yarn prisma migrate deploy` (with production `DATABASE_URL` and `DIRECT_URL` in `.env` or Render env)
 - Make sure Prisma Client is generated: `npm run prisma:generate`
 - Check database permissions
 - Verify schema.prisma is valid

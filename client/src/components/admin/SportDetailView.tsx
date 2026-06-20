@@ -1,55 +1,50 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api";
 import { useAuth } from "@/hooks/api/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Edit, Save, X } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import { useMemo } from "react";
 import { getSportCounts } from "@/utils/sportParticipantCounts";
+import { SportRulesContent } from "@/components/SportRulesContent";
+import { SportFormatContent, hasSportFormat } from "@/components/SportFormatContent";
+import { BookOpen, LayoutGrid } from "lucide-react";
 
-const sportUpdateSchema = z.object({
-  gender: z.enum(["male", "female", "mixed"]).optional().nullable(),
-  ageLimitMin: z.preprocess(
-    (val) => {
-      if (val === "" || val === null || val === undefined) return null;
-      const num = Number(val);
-      return isNaN(num) ? null : num;
-    },
-    z.number().nullable().optional()
-  ),
-  ageLimitMax: z.preprocess(
-    (val) => {
-      if (val === "" || val === null || val === undefined) return null;
-      const num = Number(val);
-      return isNaN(num) ? null : num;
-    },
-    z.number().nullable().optional()
-  ),
-});
+function ReadOnlyField({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Input value={value?.trim() ? value : "—"} disabled className="bg-muted" />
+    </div>
+  );
+}
 
-type SportUpdateFormData = z.infer<typeof sportUpdateSchema>;
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString();
+}
 
 export function SportDetailView() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [isEditing, setIsEditing] = useState(false);
-  
-  const { data: sport } = useQuery({
+
+  const { data: sport, isLoading: isLoadingSport } = useQuery({
     queryKey: ["sport", user?.sportId],
-    queryFn: () => user?.sportId ? api.getSport(user.sportId) : null,
+    queryFn: () => (user?.sportId ? api.getSport(user.sportId) : null),
     enabled: !!user?.sportId,
   });
 
   const { data: sports = [] } = useQuery({
     queryKey: ["sports"],
     queryFn: api.listSports,
+    enabled: !!user?.sportId,
+  });
+
+  const { data: convenors = [] } = useQuery({
+    queryKey: ["convenors"],
+    queryFn: api.listConvenors,
     enabled: !!user?.sportId,
   });
 
@@ -67,67 +62,23 @@ export function SportDetailView() {
     return getSportCounts(sport, sports, participantStats.bySportId, includeChildren);
   }, [participantStats, sport, sports]);
 
-  const form = useForm<SportUpdateFormData>({
-    resolver: zodResolver(sportUpdateSchema),
-  });
+  const convenor = convenors.find((c) => c.sportId === sport?.id);
 
-  useEffect(() => {
-    if (sport?.id && !isEditing) {
-      form.reset({
-        gender: sport.gender ?? null,
-        ageLimitMin: sport.ageLimitMin ?? sport.ageLimit?.min ?? ("" as any),
-        ageLimitMax: sport.ageLimitMax ?? sport.ageLimit?.max ?? ("" as any),
-      });
-    }
-  }, [sport, isEditing, form]);
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<SportUpdateFormData> }) => {
-      if (!id) {
-        throw new Error("Sport ID is required for update");
-      }
-      
-      const sportData: any = {};
-      if (data.gender !== undefined) sportData.gender = data.gender ?? null;
-      if (data.ageLimitMin !== undefined) {
-        sportData.ageLimitMin = data.ageLimitMin;
-      }
-      if (data.ageLimitMax !== undefined) {
-        sportData.ageLimitMax = data.ageLimitMax;
-      }
-      return api.updateSport(id, sportData);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sport", user?.sportId] });
-      setIsEditing(false);
-    },
-  });
+  if (isLoadingSport) {
+    return <Skeleton className="h-64 w-full max-w-3xl mx-auto" />;
+  }
 
   if (!sport) {
     return <div className="text-center text-muted-foreground">No sport assigned to your account.</div>;
   }
 
-  const handleSave = (data: SportUpdateFormData) => {
-    if (sport?.id) {
-      updateMutation.mutate({ id: sport.id, data });
-    } else {
-      console.error("Cannot save: sport ID is missing");
-    }
-  };
-
-  const handleCancel = () => {
-    if (sport?.id) {
-      form.reset({
-        gender: sport.gender ?? null,
-        ageLimitMin: sport.ageLimitMin ?? sport.ageLimit?.min ?? ("" as any),
-        ageLimitMax: sport.ageLimitMax ?? sport.ageLimit?.max ?? ("" as any),
-      });
-    }
-    setIsEditing(false);
-  };
+  const ageMin = sport.ageLimitMin ?? sport.ageLimit?.min;
+  const ageMax = sport.ageLimitMax ?? sport.ageLimit?.max;
+  const ageLabel =
+    ageMin != null || ageMax != null ? `${ageMin ?? "?"} – ${ageMax ?? "?"}` : "Any";
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
+    <div className="max-w-4xl mx-auto space-y-4">
       {isLoadingStats ? (
         <div className="grid grid-cols-2 gap-4 max-w-md">
           <Skeleton className="h-24" />
@@ -159,86 +110,71 @@ export function SportDetailView() {
       )}
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{sport.name} - Details</CardTitle>
-          {!isEditing ? (
-            <Button onClick={() => setIsEditing(true)} variant="outline" size="sm">
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          ) : (
-            <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={updateMutation.isPending}>
-                <Save className="mr-2 h-4 w-4" />
-                Save
-              </Button>
-              <Button type="button" onClick={handleCancel} variant="outline" size="sm">
-                <X className="mr-2 h-4 w-4" />
-                Cancel
-              </Button>
+        <CardHeader>
+          <CardTitle>{sport.name}</CardTitle>
+          <CardDescription>View only — contact the super admin to update sport details, rules, or formats.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <ReadOnlyField label="Type" value={sport.type} />
+            <ReadOnlyField label="Status" value={sport.active ? "Active" : "Inactive"} />
+            <ReadOnlyField label="Gender" value={sport.gender || "Any"} />
+            <ReadOnlyField label="Age Limit" value={ageLabel} />
+            <ReadOnlyField label="Requires Team Name" value={sport.requiresTeamName ? "Yes" : "No"} />
+            <ReadOnlyField label="Venue" value={sport.venue} />
+            <ReadOnlyField label="Timings" value={sport.timings} />
+            <ReadOnlyField label="Date" value={formatDate(sport.date)} />
+          </div>
+
+          {sport.notes?.trim() && (
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <p className="text-sm text-muted-foreground rounded-md border bg-muted/30 p-3 whitespace-pre-wrap">
+                {sport.notes}
+              </p>
             </div>
           )}
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={form.handleSubmit(handleSave)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="type">Type</Label>
-                <Input id="type" value={sport.type} disabled className="bg-muted" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Input id="status" value={sport.active ? "Active" : "Inactive"} disabled className="bg-muted" />
-              </div>
-            </div>
 
-            <div className="space-y-2 max-w-xs">
-              <Label htmlFor="gender">Gender</Label>
-              {isEditing ? (
-                <Select
-                  value={form.watch("gender") ?? "none"}
-                  onValueChange={(value) => form.setValue("gender", value === "none" ? null : value as "male" | "female" | "mixed")}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Any gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Any</SelectItem>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                    <SelectItem value="mixed">Mixed</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input value={sport.gender || "Any"} disabled className="bg-muted" />
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label>Age Limit <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                <div className="grid grid-cols-2 gap-4">
-                  {isEditing ? (
-                    <>
-                      <Input type="number" min={0} placeholder="Min age (optional)" {...form.register("ageLimitMin")} />
-                      <Input type="number" min={0} placeholder="Max age (optional)" {...form.register("ageLimitMax")} />
-                    </>
-                  ) : (
-                    <>
-                      <Input value={sport.ageLimitMin ?? sport.ageLimit?.min ?? ""} disabled className="bg-muted" placeholder="Min age" />
-                      <Input value={sport.ageLimitMax ?? sport.ageLimit?.max ?? ""} disabled className="bg-muted" placeholder="Max age" />
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="requiresTeamName">Requires Team Name</Label>
-                <Input id="requiresTeamName" value={sport.requiresTeamName ? "Yes" : "No"} disabled className="bg-muted" />
+          {convenor && (
+            <div className="space-y-2 border-t pt-4">
+              <Label className="text-base font-semibold">Convenor</Label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <ReadOnlyField label="Name" value={convenor.name} />
+                <ReadOnlyField label="Phone" value={convenor.phone} />
+                <ReadOnlyField label="Email" value={convenor.email} />
               </div>
             </div>
-          </form>
+          )}
         </CardContent>
       </Card>
+
+      {(sport.rules?.trim() || sport.rulesFileUrl) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <BookOpen className="h-5 w-5 text-primary" />
+              Sport Rules
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SportRulesContent rules={sport.rules} rulesFileUrl={sport.rulesFileUrl} />
+          </CardContent>
+        </Card>
+      )}
+
+      {hasSportFormat(sport) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <LayoutGrid className="h-5 w-5 text-primary" />
+              Tournament Format
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SportFormatContent sport={sport} />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

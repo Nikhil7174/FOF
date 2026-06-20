@@ -4,6 +4,7 @@ import { api } from "@/api";
 import { TournamentFormat } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -42,7 +43,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Edit, Trash2, Upload, FileText } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -67,6 +68,7 @@ export function TournamentFormatsManagement() {
   const [editingFormat, setEditingFormat] = useState<TournamentFormat | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [formatToDelete, setFormatToDelete] = useState<TournamentFormat | null>(null);
+  const [isImportingFormats, setIsImportingFormats] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: formats = [], isLoading: isLoadingFormats } = useQuery({
@@ -190,8 +192,82 @@ export function TournamentFormatsManagement() {
     return cat?.label || category;
   };
 
+  const handleMasterFormatImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      toast({
+        title: "Invalid file",
+        description: "Please upload a PDF file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsImportingFormats(true);
+    try {
+      const result = await api.importFormatsPdf(file);
+      queryClient.invalidateQueries({ queryKey: ["sports"] });
+      toast({
+        title: "Formats imported",
+        description: `Updated ${result.updated} sport(s) from PDF.${result.matched.length ? ` Matched: ${result.matched.slice(0, 5).join(", ")}${result.matched.length > 5 ? "…" : ""}` : ""}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Import failed",
+        description: error?.message || "Could not extract formats from PDF.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImportingFormats(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <FileText className="h-5 w-5 text-primary" />
+            Import Master Formats PDF
+          </CardTitle>
+          <CardDescription>
+            Upload the full &quot;Games Formats&quot; PDF to extract and apply formats to all matching sports at once.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isImportingFormats}
+              onClick={() => document.getElementById("master-formats-pdf-input")?.click()}
+            >
+              {isImportingFormats ? (
+                "Importing..."
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Master PDF
+                </>
+              )}
+            </Button>
+            <input
+              id="master-formats-pdf-input"
+              type="file"
+              accept=".pdf,application/pdf"
+              className="hidden"
+              onChange={handleMasterFormatImport}
+            />
+            <p className="text-xs text-muted-foreground">
+              Sport names in the PDF must match sport names in the system (e.g. THROWBALL, FOOTBALL).
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Tournament Formats Management</h2>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

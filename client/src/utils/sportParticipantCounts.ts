@@ -1,5 +1,10 @@
 import type { ParticipantStats, SportRecord } from "@/types";
 
+/** Count top-level sports only (excludes sub-sports with a parentId). */
+export function countParentSports(sports: Array<{ parentId?: string | null }>): number {
+  return sports.filter((s) => !s.parentId).length;
+}
+
 export function getSportCounts(
   sport: SportRecord,
   allSports: SportRecord[],

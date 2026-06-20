@@ -14,6 +14,7 @@ datasource db {
 enum Role {
   admin
   community_admin
+  sports_super_admin
   sports_admin
   volunteer_admin
   volunteer
@@ -170,6 +171,12 @@ model Sport {
   ageLimitMax    Int?
   convenorId     String?   @unique
   rules          String?
+  rulesFileUrl   String?
+  formatCategory String?
+  formatTeam     String?
+  formatGender   String?
+  formatGeneral  String?
+  formatFileUrl  String?
   notes          String?
   adminUsername  String?   @unique
   adminEmail     String?   @unique

@@ -135,7 +135,7 @@ This email was sent from the contact form on your website.
 });
 
 // Send email (authenticated - for admin use)
-router.post("/send", authenticate, requireRole("admin", "community_admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+router.post("/send", authenticate, requireRole("admin", "community_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const data = sendEmailSchema.parse(req.body);
 

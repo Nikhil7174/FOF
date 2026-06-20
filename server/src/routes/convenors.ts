@@ -69,7 +69,7 @@ router.get("/sport/:sportId", async (req: AuthRequest, res: Response) => {
 });
 
 // Create convenor
-router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+router.post("/", authenticate, requireRole("admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const data = createConvenorSchema.parse(req.body);
 
@@ -123,10 +123,15 @@ router.post("/", authenticate, requireRole("admin", "sports_admin"), async (req:
 });
 
 // Update convenor
-router.patch("/:id", authenticate, requireRole("admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+router.patch("/:id", authenticate, requireRole("admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const data = createConvenorSchema.partial().parse(req.body);
+
+    const existing = await prisma.convenor.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Convenor not found" });
+    }
 
     // If sportId is being updated, verify sport exists and handle conflicts
     if (data.sportId !== undefined) {
@@ -195,9 +200,14 @@ router.patch("/:id", authenticate, requireRole("admin", "sports_admin"), async (
 });
 
 // Delete convenor
-router.delete("/:id", authenticate, requireRole("admin", "sports_admin"), async (req: AuthRequest, res: Response) => {
+router.delete("/:id", authenticate, requireRole("admin", "sports_super_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+
+    const existing = await prisma.convenor.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Convenor not found" });
+    }
 
     // Remove convenorId from sport if linked
     const convenor = await prisma.convenor.findUnique({

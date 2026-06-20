@@ -1,7 +1,7 @@
 // API client for backend server
 
 // Import types from shared types file
-import type { Role, User, Participant, ParticipantStats, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult } from "@/types";
+import type { Role, User, Participant, ParticipantStats, CommunitySportMatrix, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult } from "@/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
@@ -102,7 +102,7 @@ async function request<T>(
 }
 
 // Re-export types for convenience
-export type { Role, User, Participant, ParticipantStats, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult };
+export type { Role, User, Participant, ParticipantStats, CommunitySportMatrix, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult };
 
 // API methods
 export const api = {
@@ -163,6 +163,33 @@ export const api = {
   // Participants
   async getParticipantStats(): Promise<ParticipantStats> {
     return request<ParticipantStats>("/participants/stats");
+  },
+
+  async getCommunitySportMatrix(status = "accepted"): Promise<CommunitySportMatrix> {
+    return request<CommunitySportMatrix>(`/participants/community-sport-matrix?status=${status}`);
+  },
+
+  async exportCommunitySportMatrix(format: "csv" | "excel", status = "accepted"): Promise<void> {
+    const token = getToken();
+    const url = `${API_BASE_URL}/participants/export/community-sport-matrix/${format}?status=${status}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || "Export failed");
+    }
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `community-vs-sport.${format === "csv" ? "csv" : "xlsx"}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(downloadUrl);
+    document.body.removeChild(a);
   },
 
   async listParticipants(): Promise<Participant[]> {
@@ -301,6 +328,92 @@ export const api = {
     });
   },
 
+  async uploadSportRulesFile(file: File): Promise<{ url: string; filename: string }> {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const url = `${API_BASE_URL}/sports/upload-rules`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || error.message || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  async uploadSportFormatPdf(
+    file: File,
+    sportName: string
+  ): Promise<{
+    url: string;
+    filename: string;
+    formatCategory: string;
+    formatTeam: string;
+    formatGender: string;
+    formatGeneral: string;
+  }> {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("sportName", sportName);
+
+    const url = `${API_BASE_URL}/sports/upload-format-pdf`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || error.message || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  async importFormatsPdf(file: File): Promise<{
+    url: string;
+    filename: string;
+    updated: number;
+    matched: string[];
+    totalParsed: number;
+  }> {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const url = `${API_BASE_URL}/sports/import-formats-pdf`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || error.message || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  },
+
   async deleteSport(id: string): Promise<boolean> {
     await request(`/sports/${id}`, { method: "DELETE" });
     return true;
@@ -392,6 +505,28 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(data),
     });
+  },
+  async uploadImage(file: File): Promise<{ url: string; filename: string }> {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const url = `${API_BASE_URL}/settings/upload-image`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || error.message || `HTTP ${response.status}`);
+    }
+
+    return response.json();
   },
 
   // Email
