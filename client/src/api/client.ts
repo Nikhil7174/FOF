@@ -271,7 +271,7 @@ export const api = {
   async updateParticipantSports(sportIds: string[]): Promise<Participant> {
     return request<Participant>("/participants/me/sports", {
       method: "PATCH",
-      body: JSON.stringify({ sportIds }),
+      body: JSON.stringify({ sports: sportIds }),
     });
   },
 
