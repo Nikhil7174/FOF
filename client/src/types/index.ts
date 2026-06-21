@@ -58,6 +58,14 @@ export interface ParticipantStats {
   totalRegistered: number;
   totalAccepted: number;
   bySportId: Record<string, { registered: number; accepted: number }>;
+  byCommunity?: Array<{
+    communityId: string;
+    communityName: string;
+    total: number;
+    accepted: number;
+    rejected: number;
+    pending: number;
+  }>;
 }
 
 export interface CommunitySportMatrix {
@@ -127,6 +135,11 @@ export interface CalendarItem {
   type: string;
 }
 
+export interface CalendarGridEntry {
+  date: string;
+  events: string[];
+}
+
 export interface SettingsRecord {
   id: string;
   ageCalculatorDate?: string | null;
@@ -143,6 +156,8 @@ export interface SettingsRecord {
   linkedinUrl?: string | null;
   termsAndConditionsText?: string | null;
   disclaimerText?: string | null;
+  calendarPdfUrl?: string | null;
+  calendarGrid?: CalendarGridEntry[] | null;
   updatedAt: string;
 }
 

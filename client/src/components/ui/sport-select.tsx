@@ -49,15 +49,19 @@ export function SportSelect({
     queryKey: ["sports"],
     queryFn: api.listSports,
   });
+  const activeSports = React.useMemo(
+    () => sports.filter((sport) => sport.active !== false),
+    [sports]
+  );
 
   // Organize sports with parent and children
   const sportsWithChildren = React.useMemo(() => {
-    const parentSports = sports.filter((sport) => !sport.parentId);
+    const parentSports = activeSports.filter((sport) => !sport.parentId);
     return parentSports.map((parent) => ({
       parent,
-      children: sports.filter((s) => s.parentId === parent.id),
+      children: activeSports.filter((s) => s.parentId === parent.id),
     }));
-  }, [sports]);
+  }, [activeSports]);
 
   // Get all sports for display (parent and children)
   // If parent has children, only show children. If parent has no children, show parent.

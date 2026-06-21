@@ -20,8 +20,10 @@ export default function Sports() {
     queryFn: api.listSports,
   });
 
-  const sportsWithRules = sports.filter((s) => s.rules?.trim() || s.rulesFileUrl);
-  const sportsWithFormats = sports.filter((s) => hasSportFormat(s));
+  const activeSports = sports.filter((sport) => sport.active !== false);
+  const activeConvenors = convenors.filter((convenor) => convenor.sport?.active !== false);
+  const sportsWithRules = activeSports.filter((s) => s.rules?.trim() || s.rulesFileUrl);
+  const sportsWithFormats = activeSports.filter((s) => hasSportFormat(s));
 
   return (
     <div className="min-h-screen bg-background">
@@ -61,7 +63,7 @@ export default function Sports() {
                   </Card>
                 ))}
               </div>
-            ) : convenors.length === 0 ? (
+            ) : activeConvenors.length === 0 ? (
               <Card>
                 <CardContent className="py-8 text-center text-muted-foreground">
                   No convenors found.
@@ -69,7 +71,7 @@ export default function Sports() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {convenors.map((convenor, index) => (
+                {activeConvenors.map((convenor, index) => (
                   <Card key={convenor.id} className="hover:shadow-card transition-shadow animate-fade-in" style={{ animationDelay: `${index * 0.05}s` }}>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">

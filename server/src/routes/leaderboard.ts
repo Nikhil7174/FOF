@@ -20,6 +20,9 @@ router.get("/", async (req: AuthRequest, res: Response) => {
   try {
     // Get all leaderboard entries with community and sport info
     const entries = await prisma.leaderboardEntry.findMany({
+      where: {
+        sport: { active: true },
+      },
       include: {
         community: {
           select: {
@@ -88,7 +91,7 @@ router.get("/sport/:sportId", async (req: AuthRequest, res: Response) => {
     const { sportId } = req.params;
 
     const entries = await prisma.leaderboardEntry.findMany({
-      where: { sportId },
+      where: { sportId, sport: { active: true } },
       include: {
         community: {
           select: {
@@ -134,7 +137,7 @@ router.get("/community/:communityId", async (req: AuthRequest, res: Response) =>
     const { communityId } = req.params;
 
     const entries = await prisma.leaderboardEntry.findMany({
-      where: { communityId },
+      where: { communityId, sport: { active: true } },
       include: {
         community: {
           select: {

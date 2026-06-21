@@ -204,8 +204,8 @@ function PerSportLeaderboard({ sports, isAdmin }: { sports: SportRecord[]; isAdm
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSportId, setEditingSportId] = useState<string | null>(null);
 
-  // Filter out child sports (subsports)
-  const parentSports = sports.filter((sport) => !sport.parentId);
+  // Filter out inactive sports and child sports (subsports)
+  const parentSports = sports.filter((sport) => sport.active !== false && !sport.parentId);
 
   const handleEditSport = (sportId: string) => {
     setEditingSportId(sportId);

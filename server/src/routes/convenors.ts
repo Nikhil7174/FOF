@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../index";
-import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
+import { authenticate, optionalAuthenticate, AuthRequest, requireRole } from "../middleware/auth";
 
 const router = Router();
 
@@ -12,10 +12,23 @@ const createConvenorSchema = z.object({
   sportId: z.string().optional(),
 });
 
+function canIncludeInactiveSports(req: AuthRequest): boolean {
+  const role = req.user?.role as string | undefined;
+  return req.query.includeInactive === "true" && (role === "admin" || role === "sports_super_admin");
+}
+
 // List all convenors
-router.get("/", async (req: AuthRequest, res: Response) => {
+router.get("/", optionalAuthenticate, async (req: AuthRequest, res: Response) => {
   try {
     const convenors = await prisma.convenor.findMany({
+      where: canIncludeInactiveSports(req)
+        ? undefined
+        : {
+            OR: [
+              { sportId: null },
+              { sport: { active: true } },
+            ],
+          },
       include: {
         sport: true,
       },

@@ -55,6 +55,45 @@ export async function authenticate(
   }
 }
 
+export async function optionalAuthenticate(
+  req: AuthRequest,
+  _res: Response,
+  next: NextFunction
+) {
+  if (req.method === "OPTIONS") {
+    return next();
+  }
+
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return next();
+    }
+
+    const token = authHeader.substring(7);
+    const payload = verifyToken(token);
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true, username: true, role: true, communityId: true, sportId: true },
+    });
+
+    if (user) {
+      req.user = {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        communityId: user.communityId,
+        sportId: user.sportId,
+      };
+    }
+  } catch {
+    // Public routes should remain usable with no or stale auth headers.
+  }
+
+  next();
+}
+
 export function requireRole(...allowedRoles: Role[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) {

@@ -1,6 +1,5 @@
 import React from "react";
-import { FileText, ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { FileText } from "lucide-react";
 
 const NUMBERED_RULE = /^(\d+)\.\s+(.+)$/;
 const BOLD_LINE = /^\*\*(.+)\*\*$/;
@@ -122,14 +121,9 @@ function renderInlineFormatting(text: string): React.ReactNode {
   });
 }
 
-function getRulesFileLabel(url: string): string {
-  try {
-    const pathname = new URL(url).pathname;
-    const filename = pathname.split("/").pop() || "rules document";
-    return decodeURIComponent(filename);
-  } catch {
-    return "rules document";
-  }
+function getEmbeddedPdfUrl(url: string): string {
+  const [baseUrl] = url.split("#");
+  return `${baseUrl}#toolbar=0&navpanes=0`;
 }
 
 interface SportRulesContentProps {
@@ -154,20 +148,11 @@ export function SportRulesContent({ rules, rulesFileUrl }: SportRulesContentProp
           <FileText className="h-5 w-5 text-primary shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm">Official Rules Document</p>
-            <p className="text-xs text-muted-foreground truncate">
-              {getRulesFileLabel(rulesFileUrl!)}
-            </p>
           </div>
-          <Button asChild variant="outline" size="sm">
-            <a href={rulesFileUrl!} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-4 w-4 mr-2" />
-              View / Download
-            </a>
-          </Button>
         </div>
         {isPdf && (
           <iframe
-            src={rulesFileUrl!}
+            src={getEmbeddedPdfUrl(rulesFileUrl!)}
             title="Sport rules PDF"
             className="w-full h-[480px] rounded-md border bg-white"
           />

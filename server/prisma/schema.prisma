@@ -257,6 +257,8 @@ model Settings {
   linkedinUrl       String?
   termsAndConditionsText String? @db.Text
   disclaimerText    String?   @db.Text
+  calendarPdfUrl    String?
+  calendarGrid      Json?
   updatedAt         DateTime  @updatedAt
 }
 

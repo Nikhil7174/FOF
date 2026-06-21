@@ -40,6 +40,28 @@ const updateVolunteerSchema = z.object({
   sportId: z.string().optional().nullable(),
 });
 
+function hideInactiveVolunteerSport<T extends { sport?: { active?: boolean } | null }>(volunteer: T): T {
+  if (volunteer.sport && volunteer.sport.active === false) {
+    return { ...volunteer, sport: null };
+  }
+  return volunteer;
+}
+
+async function getActiveSportAssignmentError(sportId?: string | null): Promise<string | null> {
+  if (!sportId) return null;
+
+  const sport = await prisma.sport.findUnique({
+    where: { id: sportId },
+    select: { active: true },
+  });
+
+  if (!sport || !sport.active) {
+    return "Selected sport is unavailable.";
+  }
+
+  return null;
+}
+
 // Get my volunteer (for volunteers)
 router.get("/me", authenticate, async (req: AuthRequest, res: Response) => {
   try {
@@ -50,7 +72,7 @@ router.get("/me", authenticate, async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.json(volunteer);
+    res.json(volunteer ? hideInactiveVolunteerSport(volunteer) : volunteer);
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Failed to get volunteer" });
   }
@@ -106,7 +128,7 @@ router.patch("/me", authenticate, async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.json(updated);
+    res.json(hideInactiveVolunteerSport(updated));
   } catch (error: any) {
     if (error.name === "ZodError") {
       return res.status(400).json({ error: "Invalid input", details: error.errors });
@@ -135,6 +157,10 @@ router.patch("/me/sport", authenticate, async (req: AuthRequest, res: Response) 
     }
 
     const { sportId } = req.body;
+    const activeSportError = await getActiveSportAssignmentError(sportId);
+    if (activeSportError) {
+      return res.status(400).json({ error: activeSportError });
+    }
 
     const volunteer = await prisma.volunteer.findUnique({
       where: { userId: req.user!.id },
@@ -152,7 +178,7 @@ router.patch("/me/sport", authenticate, async (req: AuthRequest, res: Response) 
       },
     });
 
-    res.json(updated);
+    res.json(hideInactiveVolunteerSport(updated));
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Failed to update volunteer sport" });
   }
@@ -176,7 +202,7 @@ router.get("/", authenticate, async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: "desc" },
     });
 
-    res.json(volunteers);
+    res.json(volunteers.map(hideInactiveVolunteerSport));
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Failed to list volunteers" });
   }
@@ -216,6 +242,10 @@ router.post("/", async (req: AuthRequest, res: Response) => {
 
     // Parse date
     const dob = typeof data.dob === "string" ? new Date(data.dob) : data.dob;
+    const activeSportError = await getActiveSportAssignmentError(data.sportId);
+    if (activeSportError) {
+      return res.status(400).json({ error: activeSportError });
+    }
 
     // Hash password
     const hashedPassword = await hashPassword(data.password);
@@ -248,7 +278,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.status(201).json(volunteer);
+    res.status(201).json(hideInactiveVolunteerSport(volunteer));
   } catch (error: any) {
     if (error.name === "ZodError") {
       return res.status(400).json({ error: "Invalid input", details: error.errors });
@@ -302,6 +332,11 @@ router.patch("/:id", authenticate, requireRole("admin", "volunteer_admin"), asyn
       updateData.dob = typeof updateData.dob === "string" ? new Date(updateData.dob) : updateData.dob;
     }
 
+    const activeSportError = await getActiveSportAssignmentError(updateData.sportId);
+    if (activeSportError) {
+      return res.status(400).json({ error: activeSportError });
+    }
+
     const { password: newPassword, username, ...volunteerData } = updateData as any;
 
     const volunteer = await prisma.volunteer.update({
@@ -330,7 +365,7 @@ router.patch("/:id", authenticate, requireRole("admin", "volunteer_admin"), asyn
       });
     }
 
-    res.json(volunteer);
+    res.json(hideInactiveVolunteerSport(volunteer));
   } catch (error: any) {
     if (error.name === "ZodError") {
       return res.status(400).json({ error: "Invalid input", details: error.errors });
@@ -364,7 +399,7 @@ router.get("/export/:format", authenticate, requireRole("admin", "volunteer_admi
       orderBy: { createdAt: "desc" },
     });
 
-    const exportData = volunteers.map((v) => {
+    const exportData = volunteers.map(hideInactiveVolunteerSport).map((v) => {
       let sportName = "-";
       if (v.sport) {
         if (v.sport.parentId) {

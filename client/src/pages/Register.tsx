@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Loader2, ChevronDown } from "lucide-react";
 import { api, type CreateParticipantInput } from "@/api";
@@ -119,6 +119,7 @@ export default function Register() {
     queryKey: ["sports"],
     queryFn: api.listSports,
   });
+  const activeSports = useMemo(() => sports.filter((sport: any) => sport.active !== false), [sports]);
 
   const { data: settings } = useQuery({
     queryKey: ["settings"],
@@ -152,6 +153,48 @@ export default function Register() {
   };
 
   const calculatedAge = calculateAge(dob);
+
+  const getGenderRestrictionReason = (sport: any) => {
+    if (!gender || !sport.gender || sport.gender === "mixed") return null;
+    return sport.gender !== gender ? `Restricted to ${sport.gender} participants` : null;
+  };
+
+  const getAgeRestrictionReason = (sport: any) => {
+    if (calculatedAge === null) return null;
+    const minAge = sport.ageLimitMin ?? sport.ageLimit?.min;
+    const maxAge = sport.ageLimitMax ?? sport.ageLimit?.max;
+    if (minAge != null && calculatedAge < minAge) return `Minimum age ${minAge}`;
+    if (maxAge != null && calculatedAge > maxAge) return `Maximum age ${maxAge}`;
+    return null;
+  };
+
+  const getIncompatibilityReason = (sport: any) => {
+    if (selectedSports.includes(sport.id)) return null;
+
+    const incompatibleIds = (sport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
+    const incompatibleSport = activeSports.find((selectedSport: any) => {
+      const selectedIncompatibleIds =
+        (selectedSport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
+      return (
+        selectedSports.includes(selectedSport.id) &&
+        (incompatibleIds.includes(selectedSport.id) || selectedIncompatibleIds.includes(sport.id))
+      );
+    });
+
+    return incompatibleSport ? `Conflicts with ${incompatibleSport.name}` : null;
+  };
+
+  const getSportUnavailableReason = (sport: any) =>
+    getIncompatibilityReason(sport) || getAgeRestrictionReason(sport) || getGenderRestrictionReason(sport);
+
+  const getSportLabelClass = (isUnavailable: boolean, isDisabled: boolean) =>
+    `text-sm font-normal ${
+      isUnavailable
+        ? "cursor-not-allowed rounded px-1 text-destructive bg-destructive/10"
+        : isDisabled
+        ? "cursor-not-allowed opacity-50"
+        : "cursor-pointer"
+    }`;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -216,6 +259,19 @@ export default function Register() {
     const trimmedNotes = notes.trim();
     if (!trimmedNotes) {
       toast({ title: "Payment Details Required", description: "Please provide payment details.", variant: "destructive" });
+      return;
+    }
+
+    const unavailableSelectedSport = selectedSports
+      .map((sportId) => activeSports.find((sport) => sport.id === sportId))
+      .find((sport) => sport && (getAgeRestrictionReason(sport) || getGenderRestrictionReason(sport)));
+    if (unavailableSelectedSport) {
+      const reason = getAgeRestrictionReason(unavailableSelectedSport) || getGenderRestrictionReason(unavailableSelectedSport);
+      toast({
+        title: "Sport Not Eligible",
+        description: `${unavailableSelectedSport.name}: ${reason}`,
+        variant: "destructive",
+      });
       return;
     }
     
@@ -312,7 +368,7 @@ export default function Register() {
   };
 
   const toggleSport = (sportId: string) => {
-    const sport = sports.find((s) => s.id === sportId);
+    const sport = activeSports.find((s) => s.id === sportId);
     if (!sport) return;
 
     // If deselecting, just remove it
@@ -321,12 +377,22 @@ export default function Register() {
       return;
     }
 
+    const unavailableReason = getSportUnavailableReason(sport);
+    if (unavailableReason) {
+      toast({
+        title: "Sport Not Eligible",
+        description: `${sport.name}: ${unavailableReason}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Check for incompatible sports before adding
     const incompatibleIds = (sport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
     const hasIncompatible = selectedSports.some((selectedId) => incompatibleIds.includes(selectedId));
     
     if (hasIncompatible) {
-      const incompatibleSport = sports.find((s) => 
+      const incompatibleSport = activeSports.find((s) => 
         selectedSports.includes(s.id) && incompatibleIds.includes(s.id)
       );
       toast({ 
@@ -339,7 +405,7 @@ export default function Register() {
 
     // Also check if any already selected sport is incompatible with this one
     for (const selectedId of selectedSports) {
-      const selectedSport = sports.find((s) => s.id === selectedId);
+      const selectedSport = activeSports.find((s) => s.id === selectedId);
       if (selectedSport) {
         const selectedIncompatibleIds = (selectedSport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
         if (selectedIncompatibleIds.includes(sportId)) {
@@ -558,10 +624,10 @@ export default function Register() {
                   </button>
                   {isSportsSectionOpen && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {sports
+                    {activeSports
                       .filter((s: any) => !s.parentId)
                       .map((parent: any) => {
-                        const children = sports.filter((s: any) => s.parentId === parent.id);
+                        const children = activeSports.filter((s: any) => s.parentId === parent.id);
                         const hasChildren = children.length > 0;
                         
                         return (
@@ -581,7 +647,7 @@ export default function Register() {
                                     // Check if any selected sport is incompatible with this child
                                     let isIncompatibleFromSelected = false;
                                     for (const selectedId of selectedSports) {
-                                      const selectedSport = sports.find((s: any) => s.id === selectedId);
+                                      const selectedSport = activeSports.find((s: any) => s.id === selectedId);
                                       if (selectedSport) {
                                         const selectedIncompatibleIds = (selectedSport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
                                         if (selectedIncompatibleIds.includes(child.id)) {
@@ -591,19 +657,23 @@ export default function Register() {
                                       }
                                     }
                                     
-                                    const isDisabled = isSubmitting || (selectedSports.length > 0 && (isIncompatibleWithSelected || isIncompatibleFromSelected) && !selectedSports.includes(child.id));
+                                    const isSelected = selectedSports.includes(child.id);
+                                    const isUnavailable =
+                                      Boolean(getAgeRestrictionReason(child) || getGenderRestrictionReason(child)) ||
+                                      (selectedSports.length > 0 && (isIncompatibleWithSelected || isIncompatibleFromSelected) && !isSelected);
+                                    const isDisabled = isSubmitting || (isUnavailable && !isSelected);
                                     
                                     return (
                                       <div key={child.id} className="flex items-center space-x-2">
                                         <Checkbox
                                           id={`sport-${child.id}`}
-                                          checked={selectedSports.includes(child.id)}
+                                          checked={isSelected}
                                           onCheckedChange={() => toggleSport(child.id)}
                                           disabled={isDisabled}
                                         />
                                         <Label 
                                           htmlFor={`sport-${child.id}`} 
-                                          className={`text-sm font-normal ${isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                                          className={getSportLabelClass(isUnavailable, isDisabled)}
                                         >
                                           {child.name}
                                         </Label>
@@ -625,7 +695,7 @@ export default function Register() {
                                   // Check if any selected sport is incompatible with this parent
                                   let isIncompatibleFromSelected = false;
                                   for (const selectedId of selectedSports) {
-                                    const selectedSport = sports.find((s: any) => s.id === selectedId);
+                                    const selectedSport = activeSports.find((s: any) => s.id === selectedId);
                                     if (selectedSport) {
                                       const selectedIncompatibleIds = (selectedSport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
                                       if (selectedIncompatibleIds.includes(parent.id)) {
@@ -635,19 +705,23 @@ export default function Register() {
                                     }
                                   }
                                   
-                                  const isDisabled = isSubmitting || (selectedSports.length > 0 && (isIncompatibleWithSelected || isIncompatibleFromSelected) && !selectedSports.includes(parent.id));
+                                  const isSelected = selectedSports.includes(parent.id);
+                                  const isUnavailable =
+                                    Boolean(getAgeRestrictionReason(parent) || getGenderRestrictionReason(parent)) ||
+                                    (selectedSports.length > 0 && (isIncompatibleWithSelected || isIncompatibleFromSelected) && !isSelected);
+                                  const isDisabled = isSubmitting || (isUnavailable && !isSelected);
                                   
                                   return (
                                     <>
                                       <Checkbox
                                         id={`sport-${parent.id}`}
-                                        checked={selectedSports.includes(parent.id)}
+                                        checked={isSelected}
                                         onCheckedChange={() => toggleSport(parent.id)}
                                         disabled={isDisabled}
                                       />
                                       <Label 
                                         htmlFor={`sport-${parent.id}`} 
-                                        className={`text-sm font-normal ${isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                                        className={getSportLabelClass(isUnavailable, isDisabled)}
                                       >
                                         {parent.name}
                                       </Label>

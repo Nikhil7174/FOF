@@ -94,16 +94,52 @@ const createParticipantSchema = z.object({
   notes: z.string().min(1, "Payment details are required").max(500),
 });
 
+function getSportIdsFromInput(sports: any[]): string[] {
+  return sports
+    .map((sport: any) => (typeof sport === "string" ? sport : sport?.sportId))
+    .filter((sportId: unknown): sportId is string => typeof sportId === "string" && sportId.length > 0);
+}
+
+async function getActiveSportSelectionError(sportIds: string[]): Promise<string | null> {
+  const uniqueSportIds = [...new Set(sportIds)];
+  const sports = await prisma.sport.findMany({
+    where: { id: { in: uniqueSportIds } },
+    select: { id: true, name: true, active: true },
+  });
+
+  const foundSportIds = new Set(sports.map((sport) => sport.id));
+  if (uniqueSportIds.some((sportId) => !foundSportIds.has(sportId))) {
+    return "One or more selected sports are unavailable.";
+  }
+
+  const inactiveSports = sports.filter((sport) => !sport.active);
+  if (inactiveSports.length > 0) {
+    return `Inactive sports cannot be selected: ${inactiveSports.map((sport) => sport.name).join(", ")}`;
+  }
+
+  return null;
+}
+
 // Public participant stats for the main dashboard
 router.get("/stats", async (_req: AuthRequest, res: Response) => {
   try {
-    const [totalRegistered, totalAccepted, participantSports] = await Promise.all([
+    const [totalRegistered, totalAccepted, participantSports, communities, participantsByCommunity] = await Promise.all([
       prisma.participant.count(),
       prisma.participant.count({ where: { status: ParticipantStatus.accepted } }),
       prisma.participantSport.findMany({
         select: {
           sportId: true,
           participant: { select: { status: true } },
+        },
+      }),
+      prisma.community.findMany({
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.participant.findMany({
+        select: {
+          communityId: true,
+          status: true,
         },
       }),
     ]);
@@ -119,7 +155,28 @@ router.get("/stats", async (_req: AuthRequest, res: Response) => {
       }
     }
 
-    res.json({ totalRegistered, totalAccepted, bySportId });
+    const byCommunity = communities.map((community) => {
+      const counts = {
+        communityId: community.id,
+        communityName: community.name,
+        total: 0,
+        accepted: 0,
+        rejected: 0,
+        pending: 0,
+      };
+
+      for (const participant of participantsByCommunity) {
+        if (participant.communityId !== community.id) continue;
+        counts.total++;
+        if (participant.status === ParticipantStatus.accepted) counts.accepted++;
+        if (participant.status === ParticipantStatus.rejected) counts.rejected++;
+        if (participant.status === ParticipantStatus.pending) counts.pending++;
+      }
+
+      return counts;
+    });
+
+    res.json({ totalRegistered, totalAccepted, bySportId, byCommunity });
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Failed to fetch participant stats" });
   }
@@ -133,6 +190,7 @@ async function fetchCommunitySportMatrixData(statusFilter?: ParticipantStatus) {
 
   const [sports, communities, participantSports] = await Promise.all([
     prisma.sport.findMany({
+      where: { active: true },
       select: { id: true, name: true, active: true, parentId: true },
       orderBy: { name: "asc" },
     }),
@@ -258,7 +316,15 @@ router.get("/", authenticate, requireRole("admin", "community_admin", "sports_ad
       where,
       include: {
         community: true,
+        user: {
+          select: {
+            username: true,
+          },
+        },
         sports: {
+          where: {
+            sport: { active: true },
+          },
           include: {
             sport: true,
           },
@@ -301,6 +367,9 @@ router.get("/me", authenticate, async (req: AuthRequest, res: Response) => {
       include: {
         community: true,
         sports: {
+          where: {
+            sport: { active: true },
+          },
           include: {
             sport: true,
           },
@@ -332,7 +401,11 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     const dob = typeof data.dob === "string" ? new Date(data.dob) : data.dob;
 
     // Normalize sports array - extract sportIds for validation
-    const sportIds = data.sports.map((s: any) => typeof s === "string" ? s : s.sportId);
+    const sportIds = getSportIdsFromInput(data.sports);
+    const activeSportError = await getActiveSportSelectionError(sportIds);
+    if (activeSportError) {
+      return res.status(400).json({ error: activeSportError });
+    }
 
     // Check for incompatible sports
     if (sportIds.length > 1) {
@@ -413,6 +486,9 @@ router.post("/", async (req: AuthRequest, res: Response) => {
       include: {
         community: true,
         sports: {
+          where: {
+            sport: { active: true },
+          },
           include: {
             sport: true,
           },
@@ -513,6 +589,9 @@ router.patch("/:id/status", authenticate, requireRole("admin", "community_admin"
       include: {
         community: true,
         sports: {
+          where: {
+            sport: { active: true },
+          },
           include: {
             sport: true,
           },
@@ -664,6 +743,9 @@ router.patch("/me", authenticate, async (req: AuthRequest, res: Response) => {
       include: {
         community: true,
         sports: {
+          where: {
+            sport: { active: true },
+          },
           include: {
             sport: true,
           },
@@ -699,7 +781,11 @@ router.patch("/me/sports", authenticate, async (req: AuthRequest, res: Response)
     }
 
     // Normalize sports array - extract sportIds for validation
-    const sportIds = sports.map((s: any) => typeof s === "string" ? s : s.sportId);
+    const sportIds = getSportIdsFromInput(sports);
+    const activeSportError = await getActiveSportSelectionError(sportIds);
+    if (activeSportError) {
+      return res.status(400).json({ error: activeSportError });
+    }
 
     const participant = await prisma.participant.findUnique({
       where: { userId: req.user!.id },
@@ -724,6 +810,9 @@ router.patch("/me/sports", authenticate, async (req: AuthRequest, res: Response)
         include: {
           community: true,
           sports: {
+            where: {
+              sport: { active: true },
+            },
             include: {
               sport: true,
             },
@@ -754,6 +843,9 @@ router.patch("/me/sports", authenticate, async (req: AuthRequest, res: Response)
       include: {
         community: true,
         sports: {
+          where: {
+            sport: { active: true },
+          },
           include: {
             sport: true,
           },
@@ -1417,7 +1509,15 @@ router.get("/export/:format", authenticate, requireRole("admin", "community_admi
       where,
       include: {
         community: true,
+        user: {
+          select: {
+            username: true,
+          },
+        },
         sports: {
+          where: {
+            sport: { active: true },
+          },
           include: {
             sport: true,
           },
@@ -1444,7 +1544,7 @@ router.get("/export/:format", authenticate, requireRole("admin", "community_admi
 
       const nextOfKin = p.nextOfKin as any;
       return {
-        id: p.id,
+        username: p.user?.username || "",
         firstName: p.firstName,
         middleName: p.middleName || "",
         lastName: p.lastName,
@@ -1466,7 +1566,7 @@ router.get("/export/:format", authenticate, requireRole("admin", "community_admi
     });
 
     const headers = [
-      "id", "firstName", "middleName", "lastName", "gender", "dob", "email", "phone",
+      "username", "firstName", "middleName", "lastName", "gender", "dob", "email", "phone",
       "community", "sports", "teamName", "status",
       "nextOfKinFirstName", "nextOfKinMiddleName", "nextOfKinLastName", "nextOfKinPhone",
       "createdAt", "updatedAt"

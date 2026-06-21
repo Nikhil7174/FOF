@@ -8,6 +8,7 @@ import { SportManagement } from "@/components/admin/SportManagement";
 import { CalendarManagement } from "@/components/admin/CalendarManagement";
 import { TournamentFormatsManagement } from "@/components/admin/TournamentFormatsManagement";
 import { SportParticipantsTable } from "@/components/admin/SportParticipantsTable";
+import { CommunityParticipantStatusOverview } from "@/components/admin/CommunityParticipantStatusOverview";
 import { useAuth } from "@/hooks/api/useAuth";
 import { countParentSports } from "@/utils/sportParticipantCounts";
 
@@ -16,7 +17,7 @@ export default function SportsSuperAdmin() {
 
   const { data: sports = [], isLoading: isLoadingSports } = useQuery({
     queryKey: ["sports"],
-    queryFn: api.listSports,
+    queryFn: () => api.listSports(),
     enabled: !!user,
   });
 
@@ -26,7 +27,19 @@ export default function SportsSuperAdmin() {
     enabled: !!user,
   });
 
-  const isLoading = isLoadingSports || isLoadingParticipantStats;
+  const { data: communities = [], isLoading: isLoadingCommunities } = useQuery({
+    queryKey: ["communities"],
+    queryFn: api.listCommunities,
+    enabled: !!user,
+  });
+
+  const { data: participants = [], isLoading: isLoadingParticipants } = useQuery({
+    queryKey: ["participants"],
+    queryFn: api.listParticipants,
+    enabled: !!user,
+  });
+
+  const isLoading = isLoadingSports || isLoadingParticipantStats || isLoadingCommunities || isLoadingParticipants;
 
   return (
     <div className="min-h-screen bg-background">
@@ -61,6 +74,12 @@ export default function SportsSuperAdmin() {
                   <Stat title="Accepted Participants" value={participantStats?.totalAccepted ?? 0} />
                 </div>
               )}
+              <CommunityParticipantStatusOverview
+                stats={participantStats}
+                communities={communities}
+                participants={participants}
+                isLoading={isLoadingCommunities || isLoadingParticipants || isLoadingParticipantStats}
+              />
             </TabsContent>
 
             <TabsContent value="sports">

@@ -57,6 +57,7 @@ const updateSettingsSchema = z.object({
   linkedinUrl: z.union([z.string().url(), z.literal("")]).nullable().optional(),
   termsAndConditionsText: z.string().nullable().optional(),
   disclaimerText: z.string().nullable().optional(),
+  calendarPdfUrl: z.union([z.string().url(), z.literal("")]).nullable().optional(),
 });
 
 // Get settings (public endpoint for home screen display)
@@ -149,6 +150,10 @@ router.patch("/", authenticate, requireRole("admin"), async (req: AuthRequest, r
 
     if (data.disclaimerText !== undefined) {
       updateData.disclaimerText = data.disclaimerText === "" ? null : data.disclaimerText;
+    }
+
+    if (data.calendarPdfUrl !== undefined) {
+      updateData.calendarPdfUrl = data.calendarPdfUrl === "" ? null : data.calendarPdfUrl;
     }
 
     if (settings) {

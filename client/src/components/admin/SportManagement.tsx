@@ -136,13 +136,13 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
   const queryClient = useQueryClient();
 
   const { data: sports = [], isLoading: isLoadingSports } = useQuery({
-    queryKey: ["sports"],
-    queryFn: api.listSports,
+    queryKey: ["sports", "includeInactive"],
+    queryFn: () => api.listSports({ includeInactive: true }),
   });
 
   const { data: convenors = [] } = useQuery({
-    queryKey: ["convenors"],
-    queryFn: api.listConvenors,
+    queryKey: ["convenors", "includeInactive"],
+    queryFn: () => api.listConvenors({ includeInactive: true }),
   });
 
   const { data: participantStats } = useQuery({
@@ -318,7 +318,7 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
       
       // Handle convenor update - fetch current convenors with null safety
       try {
-        const currentConvenors = await api.listConvenors();
+        const currentConvenors = await api.listConvenors({ includeInactive: true });
         const existingConvenor = currentConvenors?.find(c => c?.sportId === id);
         
         const hasConvenorData = data.convenorName?.trim() && data.convenorPhone?.trim() && data.convenorEmail?.trim();

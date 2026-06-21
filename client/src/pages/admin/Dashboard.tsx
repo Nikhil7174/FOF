@@ -13,6 +13,7 @@ import { TournamentFormatsManagement } from "@/components/admin/TournamentFormat
 import { SettingsManagement } from "@/components/admin/SettingsManagement";
 import { TermsManagement } from "@/components/admin/TermsManagement";
 import { CommunitySportMatrixOverview } from "@/components/admin/CommunitySportMatrixOverview";
+import { CommunityParticipantStatusOverview } from "@/components/admin/CommunityParticipantStatusOverview";
 import { useAuth } from "@/hooks/api/useAuth";
 import { countParentSports } from "@/utils/sportParticipantCounts";
 
@@ -29,7 +30,7 @@ export default function AdminDashboard() {
   
   const { data: sports = [], isLoading: isLoadingSports } = useQuery({ 
     queryKey: ["sports"], 
-    queryFn: api.listSports,
+    queryFn: () => api.listSports(),
     enabled: !!user,
     retry: 2,
   });
@@ -37,6 +38,13 @@ export default function AdminDashboard() {
   const { data: communities = [], isLoading: isLoadingCommunities } = useQuery({ 
     queryKey: ["communities"], 
     queryFn: api.listCommunities,
+    enabled: !!user,
+    retry: 2,
+  });
+
+  const { data: participants = [], isLoading: isLoadingParticipants } = useQuery({
+    queryKey: ["participants"],
+    queryFn: api.listParticipants,
     enabled: !!user,
     retry: 2,
   });
@@ -52,6 +60,7 @@ export default function AdminDashboard() {
     isLoadingVolunteers ||
     isLoadingSports ||
     isLoadingCommunities ||
+    isLoadingParticipants ||
     isLoadingParticipantStats;
 
   return (
@@ -100,7 +109,23 @@ export default function AdminDashboard() {
             </TabsContent>
 
             <TabsContent value="communities">
-              <CommunityManagement />
+              <Tabs defaultValue="manage" className="space-y-4">
+                <TabsList>
+                  <TabsTrigger value="manage">Manage Communities</TabsTrigger>
+                  <TabsTrigger value="entries">Entries by Community</TabsTrigger>
+                </TabsList>
+                <TabsContent value="manage">
+                  <CommunityManagement />
+                </TabsContent>
+                <TabsContent value="entries">
+                  <CommunityParticipantStatusOverview
+                    stats={participantStats}
+                    communities={communities}
+                    participants={participants}
+                    isLoading={isLoadingCommunities || isLoadingParticipants || isLoadingParticipantStats}
+                  />
+                </TabsContent>
+              </Tabs>
             </TabsContent>
 
             <TabsContent value="users">

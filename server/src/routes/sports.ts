@@ -4,7 +4,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { prisma } from "../index";
-import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
+import { authenticate, optionalAuthenticate, AuthRequest, requireRole } from "../middleware/auth";
 import { SportType, Gender, Role } from "@prisma/client";
 import { hashPassword } from "../utils/password";
 import { sendExport } from "../utils/export";
@@ -221,10 +221,20 @@ async function syncSportAdminUser(options: {
   });
 }
 
+function canIncludeInactiveSports(req: AuthRequest): boolean {
+  const role = req.user?.role as string | undefined;
+  return req.query.includeInactive === "true" && (role === "admin" || role === "sports_super_admin");
+}
+
+function activeSportsWhere(req: AuthRequest, extraWhere: Record<string, unknown> = {}) {
+  return canIncludeInactiveSports(req) ? extraWhere : { ...extraWhere, active: true };
+}
+
 // List all sports
-router.get("/", async (req: AuthRequest, res: Response) => {
+router.get("/", optionalAuthenticate, async (req: AuthRequest, res: Response) => {
   try {
     const sports = await prisma.sport.findMany({
+      where: activeSportsWhere(req),
       include: {
         incompatibleWith: {
           include: {
@@ -247,9 +257,10 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 });
 
 // List sports as tree (parent with children)
-router.get("/tree", async (req: AuthRequest, res: Response) => {
+router.get("/tree", optionalAuthenticate, async (req: AuthRequest, res: Response) => {
   try {
     const allSports = await prisma.sport.findMany({
+      where: activeSportsWhere(req),
       orderBy: { name: "asc" },
     });
 
@@ -266,12 +277,12 @@ router.get("/tree", async (req: AuthRequest, res: Response) => {
 });
 
 // Get subsports
-router.get("/subsports/:parentId", async (req: AuthRequest, res: Response) => {
+router.get("/subsports/:parentId", optionalAuthenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { parentId } = req.params;
 
     const subsports = await prisma.sport.findMany({
-      where: { parentId },
+      where: activeSportsWhere(req, { parentId }),
       orderBy: { name: "asc" },
     });
 

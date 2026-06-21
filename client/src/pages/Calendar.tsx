@@ -5,56 +5,64 @@ import { api } from "@/api";
 import { useQuery } from "@tanstack/react-query";
 import { Calendar as CalendarIcon, Clock, MapPin } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CalendarGridView } from "@/components/CalendarGridView";
 
 export default function Calendar() {
+  const { data: calendarGrid = [], isLoading: isLoadingCalendarGrid } = useQuery({
+    queryKey: ["calendar-grid"],
+    queryFn: api.listCalendarGrid,
+  });
+
   const { data: calendarEvents = [], isLoading: isLoadingCalendar } = useQuery({
     queryKey: ["calendar"],
     queryFn: () => api.listCalendar(),
+    enabled: calendarGrid.length === 0,
   });
 
   const { data: sports = [] } = useQuery({
     queryKey: ["sports"],
     queryFn: () => api.listSports(),
+    enabled: calendarGrid.length === 0,
   });
+  const activeSports = sports.filter((sport) => sport.active !== false);
 
-  // Helper function to get sport name with parent category for sub-categories
   const getSportName = (sportId: string) => {
-    const sport = sports.find((s) => s.id === sportId);
+    const sport = activeSports.find((s) => s.id === sportId);
     if (!sport) return `Sport ${sportId}`;
-    // If it's a child sport, show parent - child format
     if (sport.parentId) {
-      const parent = sports.find((s) => s.id === sport.parentId);
+      const parent = activeSports.find((s) => s.id === sport.parentId);
       return parent ? `${parent.name} - ${sport.name}` : sport.name;
     }
     return sport.name;
   };
 
-  // Create a map of sportId to sport name (with parent for sub-categories)
-  const sportMap = new Map(sports.map((s) => [s.id, getSportName(s.id)]));
+  const sportMap = new Map(activeSports.map((s) => [s.id, getSportName(s.id)]));
 
-  // Group events by date
-  const groupedEvents = calendarEvents.reduce((acc, event) => {
+  const visibleCalendarEvents = calendarEvents.filter((event) => sportMap.has(event.sportId));
+  const groupedEvents = visibleCalendarEvents.reduce((acc, event) => {
     if (!acc[event.date]) {
       acc[event.date] = [];
     }
     acc[event.date].push(event);
     return acc;
-  }, {} as Record<string, typeof calendarEvents>);
+  }, {} as Record<string, typeof visibleCalendarEvents>);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", { 
-      weekday: "long", 
-      year: "numeric", 
-      month: "long", 
-      day: "numeric" 
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
+
+  const isLoading = isLoadingCalendarGrid || (calendarGrid.length === 0 && isLoadingCalendar);
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <div className="container mx-auto px-4 py-12">
         <div className="text-center mb-12 animate-fade-in">
           <div className="inline-flex items-center justify-center p-3 bg-gradient-hero rounded-full mb-4">
@@ -66,15 +74,21 @@ export default function Calendar() {
           </p>
         </div>
 
-        <div className="max-w-5xl mx-auto space-y-8">
-          {isLoadingCalendar ? (
-            <div className="space-y-4">
-              <Skeleton className="h-8 w-48" />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Skeleton className="h-32" />
-                <Skeleton className="h-32" />
-              </div>
-            </div>
+        <div className="max-w-6xl mx-auto space-y-8">
+          {isLoading ? (
+            <Skeleton className="h-[720px] w-full rounded-lg" />
+          ) : calendarGrid.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <CalendarIcon className="h-5 w-5 text-primary" />
+                  FOF Sports Calendar
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CalendarGridView entries={calendarGrid} />
+              </CardContent>
+            </Card>
           ) : Object.keys(groupedEvents).length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">No calendar events available yet.</p>
@@ -86,7 +100,7 @@ export default function Calendar() {
                   <CalendarIcon className="h-6 w-6 text-primary" />
                   {formatDate(date)}
                 </h2>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {events.map((event) => {
                     const sportName = sportMap.get(event.sportId) || `Sport ${event.sportId}`;

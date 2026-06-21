@@ -34,10 +34,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Edit, Trash2, Upload, FileText, X } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { CalendarGridView } from "@/components/CalendarGridView";
 
 const calendarItemSchema = z.object({
   sportId: z.string().min(1, "Please select a sport"),
@@ -55,6 +58,8 @@ interface CalendarManagementProps {
 
 export function CalendarManagement({ scopedSportId }: CalendarManagementProps = {}) {
   const isScoped = Boolean(scopedSportId);
+  const { toast } = useToast();
+  const [isUploadingExcel, setIsUploadingExcel] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<CalendarItem | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -68,7 +73,12 @@ export function CalendarManagement({ scopedSportId }: CalendarManagementProps = 
 
   const { data: sports = [] } = useQuery({
     queryKey: ["sports"],
-    queryFn: api.listSports,
+    queryFn: () => api.listSports(),
+  });
+
+  const { data: calendarGrid = [] } = useQuery({
+    queryKey: ["calendar-grid"],
+    queryFn: api.listCalendarGrid,
   });
 
   const form = useForm<CalendarItemFormData>({
@@ -171,7 +181,6 @@ export function CalendarManagement({ scopedSportId }: CalendarManagementProps = 
   const getSportName = (sportId: string) => {
     const sport = sports.find((s) => s.id === sportId);
     if (!sport) return "Unknown";
-    // If it's a child sport, show parent - child format
     if (sport.parentId) {
       const parent = sports.find((s) => s.id === sport.parentId);
       return parent ? `${parent.name} - ${sport.name}` : sport.name;
@@ -179,9 +188,118 @@ export function CalendarManagement({ scopedSportId }: CalendarManagementProps = 
     return sport.name;
   };
 
+  const handleCalendarExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith(".xlsx") && !file.name.toLowerCase().endsWith(".xls")) {
+      toast({ title: "Invalid file", description: "Please upload an Excel file.", variant: "destructive" });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum size is 10MB.", variant: "destructive" });
+      return;
+    }
+
+    setIsUploadingExcel(true);
+    try {
+      const result = await api.uploadCalendarExcel(file);
+      queryClient.invalidateQueries({ queryKey: ["calendar-grid"] });
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      toast({ title: "Calendar updated", description: `${result.entries} calendar days imported from Excel.` });
+    } catch (error: any) {
+      toast({
+        title: "Upload failed",
+        description: error?.message || "Could not upload calendar Excel.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingExcel(false);
+    }
+  };
+
+  const handleRemoveCalendarGrid = async () => {
+    try {
+      await api.removeCalendarGrid();
+      queryClient.invalidateQueries({ queryKey: ["calendar-grid"] });
+      toast({ title: "Calendar removed", description: "The uploaded Excel calendar has been removed." });
+    } catch (error: any) {
+      toast({
+        title: "Remove failed",
+        description: error?.message || "Could not remove calendar.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   return (
     <div className="space-y-4">
+      {!isScoped && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <FileText className="h-5 w-5 text-primary" />
+              Sports Calendar Excel
+            </CardTitle>
+            <CardDescription>
+              Upload an Excel sheet with columns: Date and List of events. Dates should be in dd/mm/yyyy format. The day is derived automatically.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUploadingExcel}
+                onClick={() => document.getElementById("calendar-excel-input")?.click()}
+              >
+                {isUploadingExcel ? (
+                  "Uploading..."
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload Calendar Excel
+                  </>
+                )}
+              </Button>
+              <input
+                id="calendar-excel-input"
+                type="file"
+                accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                onChange={handleCalendarExcelUpload}
+              />
+              {calendarGrid.length > 0 && (
+                <>
+                  <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                    <FileText className="h-4 w-4 shrink-0" />
+                    {calendarGrid.length} imported days
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive border-destructive/40 bg-destructive/5 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive"
+                    onClick={handleRemoveCalendarGrid}
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Remove Excel Calendar
+                  </Button>
+                </>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Excel only, max 10MB. Re-uploading replaces the current calendar.
+            </p>
+            {calendarGrid.length > 0 && <CalendarGridView entries={calendarGrid} />}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">
           {isScoped ? "Sport Calendar" : "Sports Calendar Management"}

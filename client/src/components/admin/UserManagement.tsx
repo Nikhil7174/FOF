@@ -41,7 +41,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreVertical, Plus, Trash2 } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -58,10 +64,25 @@ const userSchema = z.object({
 
 type UserFormData = z.infer<typeof userSchema>;
 
+type RoleFilter = "all" | User["role"];
+
+const roleFilterOptions: User["role"][] = [
+  "admin",
+  "community_admin",
+  "sports_admin",
+  "sports_super_admin",
+  "volunteer_admin",
+  "volunteer",
+  "user",
+];
+
 export function UserManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState("");
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const queryClient = useQueryClient();
 
   const { data: users = [], isLoading: isLoadingUsers } = useQuery({
@@ -76,7 +97,7 @@ export function UserManagement() {
 
   const { data: sports = [], isLoading: isLoadingSports } = useQuery({
     queryKey: ["sports"],
-    queryFn: api.listSports,
+    queryFn: () => api.listSports(),
   });
 
   const form = useForm<UserFormData>({
@@ -97,7 +118,7 @@ export function UserManagement() {
       if (!data.password || data.password === "***") {
         throw new Error("Password is required for new users");
       }
-      const userData: Omit<User, "id"> = {
+      const userData: Omit<User, "id"> & { password: string } = {
         username: data.username,
         email: data.email || undefined,
         password: data.password,
@@ -120,6 +141,17 @@ export function UserManagement() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setDeleteDialogOpen(false);
       setUserToDelete(null);
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (usersToDelete: User[]) => {
+      await Promise.all(usersToDelete.map((user) => api.deleteUser(user.id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setBulkDeleteDialogOpen(false);
+      setBulkDeleteConfirmText("");
     },
   });
 
@@ -149,6 +181,18 @@ export function UserManagement() {
       deleteMutation.mutate(userToDelete.id);
     }
   };
+
+  const roleCounts = users.reduce((counts, user) => {
+    counts[user.role] = (counts[user.role] ?? 0) + 1;
+    return counts;
+  }, {} as Record<User["role"], number>);
+
+  const filteredUsers = users.filter((user) => {
+    if (roleFilter === "all") return true;
+    return user.role === roleFilter;
+  });
+  const canBulkDelete = filteredUsers.length > 0 && !isLoadingUsers;
+  const isBulkDeleteConfirmed = bulkDeleteConfirmText === "delete all";
 
   return (
     <div className="space-y-4">
@@ -279,10 +323,47 @@ export function UserManagement() {
             <TableRow>
               <TableHead>Username</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
+              <TableHead>
+                <div className="flex">
+                  <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value as RoleFilter)}>
+                    <SelectTrigger className="h-8 w-56">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles ({users.length})</SelectItem>
+                      {roleFilterOptions.map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {role} ({roleCounts[role] ?? 0})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </TableHead>
               <TableHead>Community</TableHead>
               <TableHead>Sport</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="text-center">
+                <div className="flex items-center justify-center gap-1">
+                  <span>Actions</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!canBulkDelete}>
+                        <MoreVertical className="h-4 w-4" />
+                        <span className="sr-only">Open actions menu</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="cursor-pointer text-destructive focus:bg-destructive focus:text-destructive-foreground"
+                        disabled={!canBulkDelete}
+                        onSelect={() => setBulkDeleteDialogOpen(true)}
+                      >
+                        Delete all
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -294,17 +375,19 @@ export function UserManagement() {
                   <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                  <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
+                  <TableCell><Skeleton className="h-8 w-16 mx-auto" /></TableCell>
                 </TableRow>
               ))
-            ) : users.length === 0 ? (
+            ) : filteredUsers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  No users found. Create one to get started.
+                  {roleFilter === "all"
+                    ? "No users found. Create one to get started."
+                    : "No users found for the selected role."}
                 </TableCell>
               </TableRow>
             ) : (
-              users.map((user) => {
+              filteredUsers.map((user) => {
                 const communityName = communities.find((c) => c.id === user.communityId)?.name || "-";
                 const getSportName = (sportId?: string) => {
                   if (!sportId) return "-";
@@ -328,7 +411,7 @@ export function UserManagement() {
                     </TableCell>
                     <TableCell>{communityName}</TableCell>
                     <TableCell>{sportName}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-center">
                       <Button variant="destructive" size="sm" onClick={() => handleDelete(user as any)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -357,6 +440,44 @@ export function UserManagement() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={bulkDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setBulkDeleteDialogOpen(open);
+          if (!open) {
+            setBulkDeleteConfirmText("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete all visible users?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {filteredUsers.length} user
+              {filteredUsers.length === 1 ? "" : "s"} currently shown in this table
+              {roleFilter === "all" ? "." : ` for the "${roleFilter}" role filter.`} Type{" "}
+              <span className="font-semibold text-foreground">delete all</span> to confirm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={bulkDeleteConfirmText}
+            onChange={(event) => setBulkDeleteConfirmText(event.target.value)}
+            placeholder="delete all"
+            disabled={bulkDeleteMutation.isPending}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => bulkDeleteMutation.mutate(filteredUsers)}
+              disabled={bulkDeleteMutation.isPending || filteredUsers.length === 0 || !isBulkDeleteConfirmed}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {bulkDeleteMutation.isPending ? "Deleting..." : "Delete all"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,7 +1,7 @@
 // API client for backend server
 
 // Import types from shared types file
-import type { Role, User, Participant, ParticipantStats, CommunitySportMatrix, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult } from "@/types";
+import type { Role, User, Participant, ParticipantStats, CommunitySportMatrix, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, CalendarGridEntry, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult } from "@/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
@@ -102,7 +102,7 @@ async function request<T>(
 }
 
 // Re-export types for convenience
-export type { Role, User, Participant, ParticipantStats, CommunitySportMatrix, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult };
+export type { Role, User, Participant, ParticipantStats, CommunitySportMatrix, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, CalendarGridEntry, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult };
 
 // API methods
 export const api = {
@@ -298,16 +298,19 @@ export const api = {
   },
 
   // Sports
-  async listSports(): Promise<SportRecord[]> {
-    return request<SportRecord[]>("/sports");
+  async listSports(options: { includeInactive?: boolean } = {}): Promise<SportRecord[]> {
+    const query = options.includeInactive ? "?includeInactive=true" : "";
+    return request<SportRecord[]>(`/sports${query}`);
   },
 
-  async listSportsTree(): Promise<Array<{ parent: SportRecord; children: SportRecord[] }>> {
-    return request<Array<{ parent: SportRecord; children: SportRecord[] }>>("/sports/tree");
+  async listSportsTree(options: { includeInactive?: boolean } = {}): Promise<Array<{ parent: SportRecord; children: SportRecord[] }>> {
+    const query = options.includeInactive ? "?includeInactive=true" : "";
+    return request<Array<{ parent: SportRecord; children: SportRecord[] }>>(`/sports/tree${query}`);
   },
 
-  async getSubsports(parentId: string): Promise<SportRecord[]> {
-    return request<SportRecord[]>(`/sports/subsports/${parentId}`);
+  async getSubsports(parentId: string, options: { includeInactive?: boolean } = {}): Promise<SportRecord[]> {
+    const query = options.includeInactive ? "?includeInactive=true" : "";
+    return request<SportRecord[]>(`/sports/subsports/${parentId}${query}`);
   },
 
   async getSport(id: string): Promise<SportRecord> {
@@ -488,6 +491,10 @@ export const api = {
     return request<CalendarItem[]>("/calendar");
   },
 
+  async listCalendarGrid(): Promise<CalendarGridEntry[]> {
+    return request<CalendarGridEntry[]>("/calendar/grid");
+  },
+
   async listTiming(): Promise<Array<{ sportId: string; time: string; date: string; venue: string }>> {
     return request<Array<{ sportId: string; time: string; date: string; venue: string }>>("/calendar/timing");
   },
@@ -500,7 +507,7 @@ export const api = {
   async getSettings(): Promise<SettingsRecord> {
     return request<SettingsRecord>("/settings");
   },
-  async updateSettings(data: Partial<Pick<SettingsRecord, "ageCalculatorDate" | "profileFreezeDate" | "siteTitle" | "siteIconUrl" | "heroImageUrl" | "heroTitle" | "heroSubtitle" | "heroDescription" | "facebookUrl" | "instagramUrl" | "tiktokUrl" | "linkedinUrl" | "termsAndConditionsText" | "disclaimerText">>): Promise<SettingsRecord> {
+  async updateSettings(data: Partial<Pick<SettingsRecord, "ageCalculatorDate" | "profileFreezeDate" | "siteTitle" | "siteIconUrl" | "heroImageUrl" | "heroTitle" | "heroSubtitle" | "heroDescription" | "facebookUrl" | "instagramUrl" | "tiktokUrl" | "linkedinUrl" | "termsAndConditionsText" | "disclaimerText" | "calendarPdfUrl">>): Promise<SettingsRecord> {
     return request<SettingsRecord>("/settings", {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -606,9 +613,64 @@ export const api = {
     return true;
   },
 
+  async uploadCalendarPdf(file: File): Promise<{ url: string; filename: string }> {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const url = `${API_BASE_URL}/calendar/upload-pdf`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || error.message || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  async uploadCalendarExcel(file: File): Promise<{ entries: number; calendarGrid: CalendarGridEntry[] }> {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const url = `${API_BASE_URL}/calendar/upload-excel`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || error.message || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  async removeCalendarGrid(): Promise<void> {
+    await request("/calendar/grid", { method: "DELETE" });
+  },
+
+  async removeCalendarPdf(): Promise<void> {
+    await request("/calendar/pdf", { method: "DELETE" });
+  },
+
   // Convenors
-  async listConvenors(): Promise<Convenor[]> {
-    return request<Convenor[]>("/convenors");
+  async listConvenors(options: { includeInactive?: boolean } = {}): Promise<Convenor[]> {
+    const query = options.includeInactive ? "?includeInactive=true" : "";
+    return request<Convenor[]>(`/convenors${query}`);
   },
 
   async getConvenor(id: string): Promise<Convenor> {
