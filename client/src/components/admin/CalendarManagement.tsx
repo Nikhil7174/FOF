@@ -40,7 +40,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarGridView } from "@/components/CalendarGridView";
 
 const calendarItemSchema = z.object({
   sportId: z.string().min(1, "Please select a sport"),
@@ -295,7 +294,6 @@ export function CalendarManagement({ scopedSportId }: CalendarManagementProps = 
             <p className="text-xs text-muted-foreground">
               Excel only, max 10MB. Re-uploading replaces the current calendar.
             </p>
-            {calendarGrid.length > 0 && <CalendarGridView entries={calendarGrid} />}
           </CardContent>
         </Card>
       )}
