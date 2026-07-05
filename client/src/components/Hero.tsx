@@ -35,21 +35,54 @@ export const Hero = () => {
     queryFn: api.listCalendar,
   });
 
+  // Fetch calendar grid to get the earliest date (if uploaded via Excel)
+  const { data: calendarGrid = [] } = useQuery({
+    queryKey: ["calendar-grid"],
+    queryFn: api.listCalendarGrid,
+  });
+
   // Calculate days until the earliest event and get the start date
   const { daysUntilEvent, startDate } = useMemo(() => {
-    if (!calendarEvents || calendarEvents.length === 0) {
-      return { daysUntilEvent: null, startDate: null };
+    const dates: Date[] = [];
+
+    // Parse calendar grid entries if available
+    if (calendarGrid && calendarGrid.length > 0) {
+      calendarGrid.forEach((entry: any) => {
+        if (entry.date) {
+          const match = entry.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (match) {
+            const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+            if (!isNaN(date.getTime())) {
+              dates.push(date);
+            }
+          } else {
+            const date = new Date(entry.date);
+            if (!isNaN(date.getTime())) {
+              dates.push(date);
+            }
+          }
+        }
+      });
     }
 
-    // Find the earliest event date
-    const dates = calendarEvents
-      .map((event) => new Date(event.date))
-      .filter((date) => !isNaN(date.getTime()))
-      .sort((a, b) => a.getTime() - b.getTime());
+    // Parse calendar events if available
+    if (calendarEvents && calendarEvents.length > 0) {
+      calendarEvents.forEach((event: any) => {
+        if (event.date) {
+          const date = new Date(event.date);
+          if (!isNaN(date.getTime())) {
+            dates.push(date);
+          }
+        }
+      });
+    }
 
     if (dates.length === 0) {
       return { daysUntilEvent: null, startDate: null };
     }
+
+    // Find the earliest event date
+    dates.sort((a, b) => a.getTime() - b.getTime());
 
     const earliestDate = dates[0];
     const today = new Date();
@@ -63,7 +96,7 @@ export const Hero = () => {
       daysUntilEvent: diffDays >= 0 ? diffDays : 0,
       startDate: earliestDate,
     };
-  }, [calendarEvents]);
+  }, [calendarEvents, calendarGrid]);
 
   // Count only parent sports (exclude sub-categories) that are active
   const activeSportsCount = sports.filter((s: any) => !s.parentId && s.active !== false).length;

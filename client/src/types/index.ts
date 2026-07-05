@@ -50,6 +50,7 @@ export interface VolunteerEntry {
   phone: string;
   sportId?: string;
   sport?: SportRecord | null;
+  sports?: SportRecord[];
   userId?: string;
   createdAt: string;
 }
@@ -102,6 +103,7 @@ export interface SportRecord {
   formatGender?: string | null;
   formatGeneral?: string | null;
   formatFileUrl?: string | null;
+  drawsFileUrl?: string | null;
   notes?: string | null;
   adminUsername?: string | null;
   adminEmail?: string | null;

@@ -175,6 +175,20 @@ export function SportDetailView() {
           </CardContent>
         </Card>
       )}
+
+      {sport.drawsFileUrl && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <LayoutGrid className="h-5 w-5 text-primary" />
+              Draws / Fixtures
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SportRulesContent rules={null} rulesFileUrl={sport.drawsFileUrl} title="Official Draws/Fixtures Document" />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

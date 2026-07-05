@@ -133,6 +133,10 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
   const [formatFileUrl, setFormatFileUrl] = useState<string>("");
   const [formatFileName, setFormatFileName] = useState<string>("");
   const [isUploadingFormat, setIsUploadingFormat] = useState(false);
+  const [drawsFileUrl, setDrawsFileUrl] = useState<string>("");
+  const [drawsFileName, setDrawsFileName] = useState<string>("");
+  const [isUploadingDraws, setIsUploadingDraws] = useState(false);
+  const drawsUrlInputRef = React.useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   const { data: sports = [], isLoading: isLoadingSports } = useQuery({
@@ -200,6 +204,7 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
         formatGender: data.formatGender?.trim() || null,
         formatGeneral: data.formatGeneral?.trim() || null,
         formatFileUrl: formatFileUrl || null,
+        drawsFileUrl: ((data as any).drawsFileUrlOverride ?? drawsFileUrl) || null,
         notes: data.notes?.trim() && data.notes.trim().length > 0 ? data.notes.trim() : null,
         ...(data.ageLimitMin != null ? { ageLimitMin: data.ageLimitMin } : {}),
         ...(data.ageLimitMax != null ? { ageLimitMax: data.ageLimitMax } : {}),
@@ -212,12 +217,12 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
       });
       
       // Create convenor if provided (with null safety)
-      if (sport?.id && data.convenorName?.trim() && data.convenorPhone?.trim() && data.convenorEmail?.trim()) {
+      if (sport?.id && data.convenorName?.trim()) {
         try {
           await api.createConvenor({
             name: data.convenorName.trim(),
-            phone: data.convenorPhone.trim(),
-            email: data.convenorEmail.trim(),
+            phone: data.convenorPhone?.trim() || "",
+            email: data.convenorEmail?.trim() || "",
             sportId: sport.id,
           });
         } catch (convenorError) {
@@ -281,6 +286,7 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
       sportData.formatGender = data.formatGender?.trim() || null;
       sportData.formatGeneral = data.formatGeneral?.trim() || null;
       sportData.formatFileUrl = formatFileUrl || null;
+      sportData.drawsFileUrl = ((data as any).drawsFileUrlOverride ?? drawsFileUrl) || null;
       if (data.notes !== undefined) sportData.notes = data.notes?.trim() && data.notes.trim().length > 0 ? data.notes.trim() : null;
       if (data.venue !== undefined) sportData.venue = data.venue?.trim() || null;
       if (data.timings !== undefined) sportData.timings = data.timings?.trim() || null;
@@ -321,20 +327,20 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
         const currentConvenors = await api.listConvenors({ includeInactive: true });
         const existingConvenor = currentConvenors?.find(c => c?.sportId === id);
         
-        const hasConvenorData = data.convenorName?.trim() && data.convenorPhone?.trim() && data.convenorEmail?.trim();
+        const hasConvenorData = Boolean(data.convenorName?.trim());
         
         if (hasConvenorData) {
           if (existingConvenor?.id) {
             await api.updateConvenor(existingConvenor.id, {
-              name: data.convenorName.trim(),
-              phone: data.convenorPhone.trim(),
-              email: data.convenorEmail.trim(),
+              name: data.convenorName!.trim(),
+              phone: data.convenorPhone?.trim() || "",
+              email: data.convenorEmail?.trim() || "",
             });
           } else {
             await api.createConvenor({
-              name: data.convenorName.trim(),
-              phone: data.convenorPhone.trim(),
-              email: data.convenorEmail.trim(),
+              name: data.convenorName!.trim(),
+              phone: data.convenorPhone?.trim() || "",
+              email: data.convenorEmail?.trim() || "",
               sportId: id,
             });
           }
@@ -361,6 +367,8 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
         setRulesFileName("");
         setFormatFileUrl("");
         setFormatFileName("");
+        setDrawsFileUrl("");
+        setDrawsFileName("");
       }
     },
     onError: (error: any) => {
@@ -397,6 +405,8 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
       setRulesFileName(sport.rulesFileUrl ? sport.rulesFileUrl.split("/").pop() || "Rules document" : "");
       setFormatFileUrl(sport.formatFileUrl || "");
       setFormatFileName(sport.formatFileUrl ? sport.formatFileUrl.split("/").pop() || "Format document" : "");
+      setDrawsFileUrl(sport.drawsFileUrl || "");
+      setDrawsFileName(sport.drawsFileUrl ? sport.drawsFileUrl.split("/").pop() || "Draws document" : "");
       const convenor = convenors?.find(c => c?.sportId === sport.id) ?? null;
       form.reset({
         name: sport.name ?? "",
@@ -455,6 +465,8 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
       setRulesFileName("");
       setFormatFileUrl("");
       setFormatFileName("");
+      setDrawsFileUrl("");
+      setDrawsFileName("");
       form.reset();
     }
     setDialogOpen(true);
@@ -535,6 +547,33 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
     }
   };
 
+  const handleDrawsFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      alert("Please upload a PDF file.");
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      alert("File size must be less than 15MB.");
+      return;
+    }
+
+    setIsUploadingDraws(true);
+    try {
+      const result = await api.uploadSportDrawsFile(file);
+      setDrawsFileUrl(result.url);
+      setDrawsFileName(result.filename);
+    } catch (error: any) {
+      alert(error?.message || "Failed to upload draws file.");
+    } finally {
+      setIsUploadingDraws(false);
+    }
+  };
+
   const handleSubmit = (data: SportFormData) => {
     console.log("Form submitted with data:", data);
     console.log("Editing sport:", editingSport);
@@ -563,18 +602,27 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
       }
     }
 
+    // Commit any URL typed but not yet blurred
+    const pendingUrl = drawsUrlInputRef.current?.value?.trim();
+    if (pendingUrl && !drawsFileUrl) {
+      setDrawsFileUrl(pendingUrl);
+    }
+    const effectiveDrawsFileUrl = drawsFileUrl || pendingUrl || "";
+
     const submission: SportFormData = {
       ...data,
       adminUsername: trimmedAdminUsername,
       adminEmail: data.adminEmail?.trim() || "",
     };
-    
+
     if (editingSport?.id) {
       console.log("Calling update mutation with id:", editingSport.id);
-      updateMutation.mutate({ id: editingSport.id, data: submission });
+      // Pass draws URL override via closure by temporarily updating state
+      // Use a direct approach: patch sportData in mutation using ref value
+      updateMutation.mutate({ id: editingSport.id, data: { ...submission, drawsFileUrlOverride: effectiveDrawsFileUrl } as any });
     } else if (!isScoped) {
       console.log("Calling create mutation");
-      createMutation.mutate(submission);
+      createMutation.mutate({ ...submission, drawsFileUrlOverride: effectiveDrawsFileUrl } as any);
     }
   };
 
@@ -622,6 +670,23 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
       setDialogOpen(true);
     }
   }, [scopedSportId, sports, isLoadingSports, editingSport?.id]);
+
+  useEffect(() => {
+    if (editingSport && convenors.length > 0) {
+      const convenor = convenors.find(c => c?.sportId === editingSport.id);
+      if (convenor) {
+        // Only set if form values are currently empty to avoid overwriting user edits
+        const currentName = form.getValues("convenorName");
+        const currentPhone = form.getValues("convenorPhone");
+        const currentEmail = form.getValues("convenorEmail");
+        if (!currentName && !currentPhone && !currentEmail) {
+          form.setValue("convenorName", convenor.name || "");
+          form.setValue("convenorPhone", convenor.phone || "");
+          form.setValue("convenorEmail", convenor.email || "");
+        }
+      }
+    }
+  }, [editingSport, convenors, form]);
 
   if (isScoped && !scopedSportId) {
     return <div className="text-muted-foreground">No sport assigned to your account.</div>;
@@ -911,93 +976,90 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
                 )}
               </div>
 
+              {/* Draws / Fixtures */}
               <div className="space-y-3 border rounded-lg p-4">
                 <div>
-                  <Label className="text-base">Tournament Format</Label>
+                  <Label className="text-base">Draws / Fixtures</Label>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Upload the master formats PDF to auto-fill fields, or enter manually. Shown on the public Sports page.
+                    Upload a PDF or paste a link. Shown on the public Draws &amp; Fixtures tab.
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isUploadingFormat || (!isScoped && !form.watch("name")?.trim())}
-                    onClick={() => document.getElementById("sport-format-file-input")?.click()}
-                  >
-                    {isUploadingFormat ? (
-                      "Extracting..."
-                    ) : (
-                      <>
-                        <Upload className="h-4 w-4 mr-2" />
-                        Extract from PDF
-                      </>
-                    )}
-                  </Button>
-                  <input
-                    id="sport-format-file-input"
-                    type="file"
-                    accept=".pdf,application/pdf"
-                    className="hidden"
-                    onChange={handleFormatPdfUpload}
-                  />
-                  {formatFileUrl && (
-                    <>
-                      <a
-                        href={formatFileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline max-w-[220px] truncate"
-                      >
-                        <FileText className="h-4 w-4 shrink-0" />
-                        {formatFileName || "Format PDF"}
-                      </a>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="text-destructive border-destructive/40 bg-destructive/5 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive shadow-sm transition-all duration-200 hover:shadow-md"
-                        onClick={() => {
-                          setFormatFileUrl("");
-                          setFormatFileName("");
+                {drawsFileUrl ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <a
+                      href={drawsFileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-sm text-primary hover:underline max-w-[220px] truncate"
+                    >
+                      <FileText className="h-4 w-4 shrink-0" />
+                      {drawsFileName || drawsFileUrl}
+                    </a>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive border-destructive/40 bg-destructive/5 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive shadow-sm transition-all duration-200 hover:shadow-md"
+                      onClick={() => { setDrawsFileUrl(""); setDrawsFileName(""); }}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Link (URL)</Label>
+                      <Input
+                        ref={drawsUrlInputRef}
+                        placeholder="https://example.com/fixture-draw"
+                        onBlur={(e) => {
+                          const val = e.target.value.trim();
+                          if (val) { setDrawsFileUrl(val); setDrawsFileName(""); }
                         }}
-                      >
-                        <X className="h-4 w-4 mr-1" />
-                        Remove PDF
-                      </Button>
-                    </>
-                  )}
-                </div>
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const val = (e.target as HTMLInputElement).value.trim();
+                            if (val) { setDrawsFileUrl(val); setDrawsFileName(""); }
+                          }
+                        }}
+                      />
+                    </div>
 
-                {!isScoped && !form.watch("name")?.trim() && (
-                  <p className="text-xs text-amber-600">Enter the sport name above before extracting from PDF.</p>
+                    <div className="relative py-1">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">or</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Upload PDF</Label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isUploadingDraws}
+                          onClick={() => document.getElementById("sport-draws-file-input")?.click()}
+                        >
+                          {isUploadingDraws ? "Uploading..." : <><Upload className="h-4 w-4 mr-2" />Upload PDF</>}
+                        </Button>
+                        <input
+                          id="sport-draws-file-input"
+                          type="file"
+                          accept=".pdf,application/pdf"
+                          className="hidden"
+                          onChange={handleDrawsFileUpload}
+                        />
+                      </div>
+                    </div>
+                  </>
                 )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="formatCategory">Category</Label>
-                    <Input id="formatCategory" {...form.register("formatCategory")} placeholder="e.g. U14, 14-39, OVER 40" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="formatTeam">Team</Label>
-                    <Input id="formatTeam" {...form.register("formatTeam")} placeholder="e.g. INDIVIDUAL, TEAM" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="formatGender">Gender</Label>
-                    <Input id="formatGender" {...form.register("formatGender")} placeholder="e.g. MALE & FEMALE" />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="formatGeneral">General Format</Label>
-                    <Textarea
-                      id="formatGeneral"
-                      {...form.register("formatGeneral")}
-                      placeholder="e.g. 6 ASIDE, TENNIS BALL, 6 OVERS PER INNING"
-                      rows={3}
-                    />
-                  </div>
-                </div>
               </div>
 
               <div className="space-y-2">
@@ -1018,7 +1080,7 @@ export function SportManagement({ scopedSportId }: SportManagementProps = {}) {
                 <Label className="text-base font-semibold">Convenor Information</Label>
                 <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="convenorName">Convenor Name</Label>
+                    <Label htmlFor="convenorName">Convenor Name *</Label>
                     <Input id="convenorName" {...form.register("convenorName")} placeholder="Convenor name" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">

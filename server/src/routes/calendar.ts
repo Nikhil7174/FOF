@@ -2,29 +2,14 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
-import fs from "fs";
 import * as XLSX from "xlsx";
 import { prisma } from "../index";
 import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
 import { assertSportEditAccess } from "../utils/sportAccess";
+import { Prisma } from "@prisma/client";
+import { uploadToSupabase } from "../utils/supabase";
 
 const router = Router();
-
-const uploadsDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-const calendarPdfStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname).toLowerCase() || ".pdf";
-    cb(null, `calendar-${uniqueSuffix}${ext}`);
-  },
-});
 
 const calendarPdfFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const ext = path.extname(file.originalname).toLowerCase();
@@ -34,12 +19,6 @@ const calendarPdfFilter = (_req: any, file: Express.Multer.File, cb: multer.File
     cb(new Error("Invalid file type. Only PDF files are allowed."));
   }
 };
-
-const uploadCalendarPdf = multer({
-  storage: calendarPdfStorage,
-  fileFilter: calendarPdfFilter,
-  limits: { fileSize: 15 * 1024 * 1024 },
-});
 
 const calendarExcelFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const ext = path.extname(file.originalname).toLowerCase();
@@ -54,8 +33,16 @@ const calendarExcelFilter = (_req: any, file: Express.Multer.File, cb: multer.Fi
   }
 };
 
+const storage = multer.memoryStorage();
+
+const uploadCalendarPdf = multer({
+  storage: storage,
+  fileFilter: calendarPdfFilter,
+  limits: { fileSize: 15 * 1024 * 1024 },
+});
+
 const uploadCalendarExcel = multer({
-  storage: calendarPdfStorage,
+  storage: storage,
   fileFilter: calendarExcelFilter,
   limits: { fileSize: 10 * 1024 * 1024 },
 });
@@ -65,9 +52,7 @@ type CalendarGridEntry = {
   events: string[];
 };
 
-function buildUploadUrl(req: AuthRequest, filename: string): string {
-  return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
-}
+
 
 function normalizeHeader(value: unknown): string {
   return String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -104,8 +89,8 @@ function splitEvents(value: unknown): string[] {
     .filter(Boolean);
 }
 
-function parseCalendarGridFromExcel(filePath: string): CalendarGridEntry[] {
-  const workbook = XLSX.readFile(filePath);
+function parseCalendarGridFromExcel(buffer: Buffer): CalendarGridEntry[] {
+  const workbook = XLSX.read(buffer, { type: "buffer" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) return [];
 
@@ -229,7 +214,10 @@ router.post(
         return res.status(400).json({ error: "No PDF file provided" });
       }
 
-      const fileUrl = buildUploadUrl(req, req.file.filename);
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const ext = path.extname(req.file.originalname).toLowerCase() || ".pdf";
+      const fileUrl = await uploadToSupabase(req.file, `calendar/calendar-${uniqueSuffix}${ext}`);
+
       const settings = await getOrCreateSettings();
 
       await prisma.settings.update({
@@ -242,9 +230,6 @@ router.post(
         filename: req.file.originalname,
       });
     } catch (error: any) {
-      if (req.file) {
-        fs.unlink(path.join(uploadsDir, req.file.filename), () => undefined);
-      }
       res.status(500).json({ error: error.message || "Failed to upload calendar PDF" });
     }
   }
@@ -262,7 +247,7 @@ router.post(
         return res.status(400).json({ error: "No Excel file provided" });
       }
 
-      const calendarGrid = parseCalendarGridFromExcel(req.file.path);
+      const calendarGrid = parseCalendarGridFromExcel(req.file.buffer);
       if (calendarGrid.length === 0) {
         return res.status(400).json({
           error: "No valid calendar rows found. Expected columns: Date, List of events.",
@@ -281,10 +266,6 @@ router.post(
       res.json({ entries: calendarGrid.length, calendarGrid });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to upload calendar Excel" });
-    } finally {
-      if (req.file) {
-        fs.unlink(req.file.path, () => undefined);
-      }
     }
   }
 );
@@ -295,7 +276,7 @@ router.delete("/grid", authenticate, requireRole("admin", "sports_super_admin"),
     const settings = await getOrCreateSettings();
     await prisma.settings.update({
       where: { id: settings.id },
-      data: { calendarGrid: null },
+      data: { calendarGrid: Prisma.DbNull },
     });
     res.json({ success: true });
   } catch (error: any) {

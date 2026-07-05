@@ -2,7 +2,7 @@ import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/api";
 import { useQuery } from "@tanstack/react-query";
-import { Users, Phone, Mail } from "lucide-react";
+import { Users, Mail } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Communities() {
@@ -51,10 +51,6 @@ export default function Communities() {
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Contact Person</p>
                     <p className="font-medium">{community.contactPerson}</p>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span>{community.phone}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Mail className="h-4 w-4 text-muted-foreground" />

@@ -53,6 +53,7 @@ export const prisma = new PrismaClient({
 });
 
 const app = express();
+app.set("trust proxy", true);
 const PORT = process.env.PORT || 3000;
 
 /**

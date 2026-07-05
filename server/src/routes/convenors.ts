@@ -7,8 +7,8 @@ const router = Router();
 
 const createConvenorSchema = z.object({
   name: z.string().min(1),
-  phone: z.string().min(1),
-  email: z.string().email(),
+  phone: z.string().optional().or(z.literal("")),
+  email: z.string().email().optional().or(z.literal("")).or(z.string().length(0)),
   sportId: z.string().optional(),
 });
 
@@ -109,8 +109,8 @@ router.post("/", authenticate, requireRole("admin", "sports_super_admin"), async
     const convenor = await prisma.convenor.create({
       data: {
         name: data.name,
-        phone: data.phone,
-        email: data.email,
+        phone: data.phone || "",
+        email: data.email || "",
         sportId: data.sportId,
       },
       include: {
@@ -191,8 +191,8 @@ router.patch("/:id", authenticate, requireRole("admin", "sports_super_admin"), a
       where: { id },
       data: {
         name: data.name,
-        phone: data.phone,
-        email: data.email,
+        phone: data.phone !== undefined ? (data.phone || "") : undefined,
+        email: data.email !== undefined ? (data.email || "") : undefined,
         sportId: data.sportId,
       },
       include: {

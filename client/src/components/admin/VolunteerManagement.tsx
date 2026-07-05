@@ -14,8 +14,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, ChevronsUpDown } from "lucide-react";
+import { Plus, ChevronsUpDown, X } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
+import { Badge } from "@/components/ui/badge";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -79,13 +80,37 @@ export function VolunteerManagement() {
       setDialogOpen(false);
       toast({ 
         title: "Success", 
-        description: `${selectedVolunteerIds.length} volunteer(s) assigned to sport successfully` 
+        description: `Volunteers assigned to sport successfully` 
       });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error?.message || "Failed to assign volunteers", variant: "destructive" });
+      const isClash = error?.message?.toLowerCase().includes("clash");
+      const message = isClash
+        ? `Clash of sports events: Unable to add volunteer due to ${error.message.replace(/clash detected:?/i, "").trim()}`
+        : (error?.message || "Failed to assign volunteers. There might be a clash with their existing sports.");
+      toast({ title: "Assignment Failed", description: message, variant: "destructive" });
     },
   });
+
+  const unassignMutation = useMutation({
+    mutationFn: async ({ volunteerId, sportIds }: { volunteerId: string; sportIds: string[] }) => {
+      return api.updateVolunteer(volunteerId, { sportIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["volunteers"] });
+      toast({ title: "Success", description: "Volunteer unassigned from sport" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error?.message || "Failed to unassign volunteer", variant: "destructive" });
+    },
+  });
+
+  const handleUnassignSport = (volunteerId: string, sportIdToRemove: string, currentSports: any[]) => {
+    const remainingSportIds = currentSports
+      .filter((s) => s.id !== sportIdToRemove)
+      .map((s) => s.id);
+    unassignMutation.mutate({ volunteerId, sportIds: remainingSportIds });
+  };
 
   const handleOpenDialog = () => {
     form.reset({
@@ -106,7 +131,9 @@ export function VolunteerManagement() {
 
   const filtered = useMemo(() => {
     if (!selectedSportId || selectedSportId === "none") return volunteers;
-    return (volunteers as VolunteerEntry[]).filter((v) => v.sportId === selectedSportId);
+    return (volunteers as VolunteerEntry[]).filter((v) => 
+      v.sports?.some((s) => s.id === selectedSportId)
+    );
   }, [volunteers, selectedSportId]);
 
   const selectedVolunteers = volunteers.filter((v: any) => selectedVolunteerIds.includes(v.id));
@@ -298,17 +325,7 @@ export function VolunteerManagement() {
                   </TableRow>
                 ) : (
                   filtered.map((v) => {
-                    const getSportName = (sportId?: string) => {
-                      if (!sportId) return "-";
-                      const sport = sports.find((s: any) => s.id === sportId);
-                      if (!sport) return "-";
-                      if (sport.parentId) {
-                        const parent = sports.find((s: any) => s.id === sport.parentId);
-                        return parent ? `${parent.name} - ${sport.name}` : sport.name;
-                      }
-                      return sport.name;
-                    };
-                    const sportName = getSportName(v.sportId);
+                    const assignedSports = v.sports || [];
                     return (
                       <TableRow key={v.id}>
                         <TableCell className="font-medium">{`${v.firstName} ${v.middleName ? v.middleName + " " : ""}${v.lastName}`}</TableCell>
@@ -316,7 +333,35 @@ export function VolunteerManagement() {
                         <TableCell>{v.dob}</TableCell>
                         <TableCell>{v.email}</TableCell>
                         <TableCell>{v.phone}</TableCell>
-                        <TableCell>{sportName}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1 max-w-[300px]">
+                            {assignedSports.length > 0 ? (
+                              assignedSports.map((sport) => {
+                                const parent = sport.parentId ? sports.find((s: any) => s.id === sport.parentId) : null;
+                                const name = parent ? `${parent.name} - ${sport.name}` : sport.name;
+                                return (
+                                  <Badge
+                                    key={sport.id}
+                                    variant="secondary"
+                                    className="gap-1 pr-1.5"
+                                  >
+                                    {name}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUnassignSport(v.id, sport.id, assignedSports)}
+                                      className="text-muted-foreground hover:text-foreground rounded-full hover:bg-muted p-0.5"
+                                      title={`Unassign from ${name}`}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </Badge>
+                                );
+                              })
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>{new Date(v.createdAt).toLocaleString()}</TableCell>
                       </TableRow>
                     );

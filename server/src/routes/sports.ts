@@ -10,24 +10,9 @@ import { hashPassword } from "../utils/password";
 import { sendExport } from "../utils/export";
 import { extractTextFromPdfBuffer, parseAllFormatsFromText, parseFormatForSport } from "../utils/parseFormatsPdf";
 import { assertSportEditAccess } from "../utils/sportAccess";
+import { uploadToSupabase } from "../utils/supabase";
 
 const router = Router();
-
-const uploadsDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-const rulesFileStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname).toLowerCase() || ".pdf";
-    cb(null, `rules-${uniqueSuffix}${ext}`);
-  },
-});
 
 const rulesFileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedMimes = [
@@ -45,25 +30,6 @@ const rulesFileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFi
   }
 };
 
-const uploadRulesFile = multer({
-  storage: rulesFileStorage,
-  fileFilter: rulesFileFilter,
-  limits: {
-    fileSize: 10 * 1024 * 1024,
-  },
-});
-
-const formatPdfStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname).toLowerCase() || ".pdf";
-    cb(null, `format-${uniqueSuffix}${ext}`);
-  },
-});
-
 const formatPdfFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const ext = path.extname(file.originalname).toLowerCase();
   if (file.mimetype === "application/pdf" || ext === ".pdf") {
@@ -73,8 +39,18 @@ const formatPdfFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFi
   }
 };
 
+const storage = multer.memoryStorage();
+
+const uploadRulesFile = multer({
+  storage: storage,
+  fileFilter: rulesFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+  },
+});
+
 const uploadFormatPdf = multer({
-  storage: formatPdfStorage,
+  storage: storage,
   fileFilter: formatPdfFilter,
   limits: {
     fileSize: 15 * 1024 * 1024,
@@ -113,6 +89,7 @@ const createSportSchema = z.object({
   formatGender: z.string().optional().nullable(),
   formatGeneral: z.string().optional().nullable(),
   formatFileUrl: z.string().url().optional().nullable().or(z.literal("")),
+  drawsFileUrl: z.string().url().optional().nullable().or(z.literal("")),
   notes: z.string().max(500).optional().nullable(),
   adminUsername: usernameFormatSchema.optional().nullable(),
   adminEmail: z.string().email().optional().nullable(),
@@ -332,31 +309,45 @@ router.post(
         return res.status(400).json({ error: "No rules file provided" });
       }
 
-      const protocol = req.protocol;
-      const host = req.get("host");
-      const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const ext = path.extname(req.file.originalname).toLowerCase() || ".pdf";
+      const fileUrl = await uploadToSupabase(req.file, `rules/rules-${uniqueSuffix}${ext}`);
 
       res.json({
         url: fileUrl,
         filename: req.file.originalname,
       });
     } catch (error: any) {
-      if (req.file) {
-        const filePath = path.join(uploadsDir, req.file.filename);
-        fs.unlink(filePath, (err) => {
-          if (err) console.error("Error deleting file:", err);
-        });
-      }
       res.status(500).json({ error: error.message || "Failed to upload rules file" });
     }
   }
 );
 
-function buildUploadUrl(req: AuthRequest, filename: string): string {
-  const protocol = req.protocol;
-  const host = req.get("host");
-  return `${protocol}://${host}/uploads/${filename}`;
-}
+// Upload draws/fixtures document (PDF only)
+router.post(
+  "/upload-draws",
+  authenticate,
+  requireRole("admin", "sports_super_admin"),
+  uploadRulesFile.single("file"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No draws file provided" });
+      }
+
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const ext = path.extname(req.file.originalname).toLowerCase() || ".pdf";
+      const fileUrl = await uploadToSupabase(req.file, `draws/draws-${uniqueSuffix}${ext}`);
+
+      res.json({
+        url: fileUrl,
+        filename: req.file.originalname,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to upload draws file" });
+    }
+  }
+);
 
 // Upload & extract tournament format from PDF for a single sport
 router.post(
@@ -375,7 +366,7 @@ router.post(
         return res.status(400).json({ error: "Sport name is required for format extraction" });
       }
 
-      const buffer = fs.readFileSync(req.file.path);
+      const buffer = req.file.buffer;
       const text = await extractTextFromPdfBuffer(buffer);
       const parsed = parseFormatForSport(text, sportName);
 
@@ -385,8 +376,12 @@ router.post(
         });
       }
 
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const ext = path.extname(req.file.originalname).toLowerCase() || ".pdf";
+      const fileUrl = await uploadToSupabase(req.file, `formats/format-${uniqueSuffix}${ext}`);
+
       res.json({
-        url: buildUploadUrl(req, req.file.filename),
+        url: fileUrl,
         filename: req.file.originalname,
         formatCategory: parsed.category,
         formatTeam: parsed.team,
@@ -394,9 +389,6 @@ router.post(
         formatGeneral: parsed.generalFormat,
       });
     } catch (error: any) {
-      if (req.file) {
-        fs.unlink(path.join(uploadsDir, req.file.filename), () => undefined);
-      }
       res.status(500).json({ error: error.message || "Failed to extract format from PDF" });
     }
   }
@@ -415,14 +407,17 @@ router.post(
       }
 
       const sports = await prisma.sport.findMany({ select: { id: true, name: true } });
-      const buffer = fs.readFileSync(req.file.path);
+      const buffer = req.file.buffer;
       const text = await extractTextFromPdfBuffer(buffer);
       const parsedFormats = parseAllFormatsFromText(
         text,
         sports.map((s) => s.name)
       );
 
-      const fileUrl = buildUploadUrl(req, req.file.filename);
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const ext = path.extname(req.file.originalname).toLowerCase() || ".pdf";
+      const fileUrl = await uploadToSupabase(req.file, `formats/format-${uniqueSuffix}${ext}`);
+
       let updated = 0;
       const matched: string[] = [];
 
@@ -452,9 +447,6 @@ router.post(
         totalParsed: parsedFormats.length,
       });
     } catch (error: any) {
-      if (req.file) {
-        fs.unlink(path.join(uploadsDir, req.file.filename), () => undefined);
-      }
       res.status(500).json({ error: error.message || "Failed to import formats from PDF" });
     }
   }
@@ -523,6 +515,7 @@ router.post("/", authenticate, requireRole("admin", "sports_super_admin"), async
         formatGender: data.formatGender || null,
         formatGeneral: data.formatGeneral || null,
         formatFileUrl: data.formatFileUrl && data.formatFileUrl !== "" ? data.formatFileUrl : null,
+        drawsFileUrl: data.drawsFileUrl && data.drawsFileUrl !== "" ? data.drawsFileUrl : null,
         notes: data.notes,
         adminUsername,
         adminEmail: data.adminEmail || null,
@@ -639,6 +632,9 @@ router.patch("/:id", authenticate, requireRole("admin", "sports_super_admin"), a
       });
       updateData.rules = rulesFields.rules;
       updateData.rulesFileUrl = rulesFields.rulesFileUrl;
+    }
+    if (data.drawsFileUrl !== undefined) {
+      updateData.drawsFileUrl = data.drawsFileUrl && data.drawsFileUrl !== "" ? data.drawsFileUrl : null;
     }
     // Only include date in update if it was explicitly provided
     if (data.date !== undefined) {

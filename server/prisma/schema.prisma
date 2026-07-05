@@ -125,6 +125,7 @@ model Volunteer {
   department Department? @relation(fields: [departmentId], references: [id])
   sport      Sport?     @relation(fields: [sportId], references: [id])
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sports     VolunteerSport[]
 
   @@index([email])
   @@index([departmentId])
@@ -177,6 +178,7 @@ model Sport {
   formatGender   String?
   formatGeneral  String?
   formatFileUrl  String?
+  drawsFileUrl   String?
   notes          String?
   adminUsername  String?   @unique
   adminEmail     String?   @unique
@@ -190,6 +192,7 @@ model Sport {
   volunteers    Volunteer[]
   participants  ParticipantSport[]
   calendarItems CalendarItem[]
+  volunteerSports VolunteerSport[]
   convenor      Convenor?           @relation(fields: [convenorId], references: [id])
   leaderboardEntries LeaderboardEntry[]
   incompatibleWith SportIncompatibility[] @relation("SportIncompatible")
@@ -332,6 +335,20 @@ model LeaderboardEntry {
   @@index([communityId])
   @@index([sportId])
   @@index([score])
+}
+
+model VolunteerSport {
+  id          String    @id @default(uuid())
+  volunteerId String
+  sportId     String
+  createdAt   DateTime  @default(now())
+
+  volunteer   Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  sport       Sport     @relation(fields: [sportId], references: [id], onDelete: Cascade)
+
+  @@unique([volunteerId, sportId])
+  @@index([volunteerId])
+  @@index([sportId])
 }
 
 

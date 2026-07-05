@@ -38,13 +38,41 @@ const updateVolunteerSchema = z.object({
   phone: z.string().min(1).optional(),
   password: z.string().min(6).optional(),
   sportId: z.string().optional().nullable(),
+  sportIds: z.array(z.string()).optional(),
 });
 
-function hideInactiveVolunteerSport<T extends { sport?: { active?: boolean } | null }>(volunteer: T): T {
-  if (volunteer.sport && volunteer.sport.active === false) {
-    return { ...volunteer, sport: null };
+async function verifySportsNoClash(sportIds: string[]): Promise<string | null> {
+  if (sportIds.length <= 1) return null;
+
+  for (const sportId of sportIds) {
+    const incompatibilities = await prisma.sportIncompatibility.findMany({
+      where: { sportId },
+      select: { incompatibleSportId: true },
+    });
+    const incompatibleIds = incompatibilities.map((inc) => inc.incompatibleSportId);
+    
+    const clash = sportIds.find((id) => id !== sportId && incompatibleIds.includes(id));
+    if (clash) {
+      const sport1 = await prisma.sport.findUnique({ where: { id: sportId }, select: { name: true } });
+      const sport2 = await prisma.sport.findUnique({ where: { id: clash }, select: { name: true } });
+      return `Clash detected: ${sport1?.name || "Sport"} and ${sport2?.name || "Sport"} are incompatible.`;
+    }
   }
-  return volunteer;
+  return null;
+}
+
+function formatVolunteer(volunteer: any) {
+  if (!volunteer) return null;
+  const activeSports = (volunteer.sports || [])
+    .filter((vs: any) => vs.sport && vs.sport.active !== false)
+    .map((vs: any) => vs.sport);
+  
+  return {
+    ...volunteer,
+    sports: activeSports,
+    sportId: activeSports[0]?.id || null,
+    sport: activeSports[0] || null,
+  };
 }
 
 async function getActiveSportAssignmentError(sportId?: string | null): Promise<string | null> {
@@ -68,11 +96,15 @@ router.get("/me", authenticate, async (req: AuthRequest, res: Response) => {
     const volunteer = await prisma.volunteer.findUnique({
       where: { userId: req.user!.id },
       include: {
-        sport: true,
+        sports: {
+          include: {
+            sport: true,
+          },
+        },
       },
     });
 
-    res.json(volunteer ? hideInactiveVolunteerSport(volunteer) : volunteer);
+    res.json(volunteer ? formatVolunteer(volunteer) : volunteer);
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Failed to get volunteer" });
   }
@@ -124,11 +156,15 @@ router.patch("/me", authenticate, async (req: AuthRequest, res: Response) => {
       where: { id: volunteer.id },
       data: updateData,
       include: {
-        sport: true,
+        sports: {
+          include: {
+            sport: true,
+          },
+        },
       },
     });
 
-    res.json(hideInactiveVolunteerSport(updated));
+    res.json(formatVolunteer(updated));
   } catch (error: any) {
     if (error.name === "ZodError") {
       return res.status(400).json({ error: "Invalid input", details: error.errors });
@@ -170,15 +206,32 @@ router.patch("/me/sport", authenticate, async (req: AuthRequest, res: Response) 
       return res.status(404).json({ error: "Volunteer not found" });
     }
 
+    // Delete existing assignments first
+    await prisma.volunteerSport.deleteMany({
+      where: { volunteerId: volunteer.id },
+    });
+    if (sportId) {
+      await prisma.volunteerSport.create({
+        data: {
+          volunteerId: volunteer.id,
+          sportId,
+        },
+      });
+    }
+
     const updated = await prisma.volunteer.update({
       where: { id: volunteer.id },
       data: { sportId: sportId || null },
       include: {
-        sport: true,
+        sports: {
+          include: {
+            sport: true,
+          },
+        },
       },
     });
 
-    res.json(hideInactiveVolunteerSport(updated));
+    res.json(formatVolunteer(updated));
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Failed to update volunteer sport" });
   }
@@ -191,18 +244,26 @@ router.get("/", authenticate, async (req: AuthRequest, res: Response) => {
 
     const where: any = {};
     if (sportId) {
-      where.sportId = sportId as string;
+      where.sports = {
+        some: {
+          sportId: sportId as string,
+        },
+      };
     }
 
     const volunteers = await prisma.volunteer.findMany({
       where,
       include: {
-        sport: true,
+        sports: {
+          include: {
+            sport: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
 
-    res.json(volunteers.map(hideInactiveVolunteerSport));
+    res.json(volunteers.map(formatVolunteer));
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Failed to list volunteers" });
   }
@@ -273,12 +334,29 @@ router.post("/", async (req: AuthRequest, res: Response) => {
         sportId: data.sportId,
         userId: user.id,
       },
+    });
+
+    if (data.sportId) {
+      await prisma.volunteerSport.create({
+        data: {
+          volunteerId: volunteer.id,
+          sportId: data.sportId,
+        },
+      });
+    }
+
+    const result = await prisma.volunteer.findUnique({
+      where: { id: volunteer.id },
       include: {
-        sport: true,
+        sports: {
+          include: {
+            sport: true,
+          },
+        },
       },
     });
 
-    res.status(201).json(hideInactiveVolunteerSport(volunteer));
+    res.status(201).json(formatVolunteer(result));
   } catch (error: any) {
     if (error.name === "ZodError") {
       return res.status(400).json({ error: "Invalid input", details: error.errors });
@@ -332,20 +410,87 @@ router.patch("/:id", authenticate, requireRole("admin", "volunteer_admin"), asyn
       updateData.dob = typeof updateData.dob === "string" ? new Date(updateData.dob) : updateData.dob;
     }
 
-    const activeSportError = await getActiveSportAssignmentError(updateData.sportId);
-    if (activeSportError) {
-      return res.status(400).json({ error: activeSportError });
+    // Validate clash detection if sportIds is provided
+    if (updateData.sportIds !== undefined) {
+      const clashError = await verifySportsNoClash(updateData.sportIds);
+      if (clashError) {
+        return res.status(400).json({ error: clashError });
+      }
+      for (const sId of updateData.sportIds) {
+        const activeError = await getActiveSportAssignmentError(sId);
+        if (activeError) {
+          return res.status(400).json({ error: activeError });
+        }
+      }
+    } else if (updateData.sportId) {
+      const currentAssignments = await prisma.volunteerSport.findMany({
+        where: { volunteerId: id },
+        select: { sportId: true },
+      });
+      const currentSportIds = currentAssignments.map((a) => a.sportId);
+      if (!currentSportIds.includes(updateData.sportId)) {
+        const checkIds = [...currentSportIds, updateData.sportId];
+        const clashError = await verifySportsNoClash(checkIds);
+        if (clashError) {
+          return res.status(400).json({ error: clashError });
+        }
+        const activeError = await getActiveSportAssignmentError(updateData.sportId);
+        if (activeError) {
+          return res.status(400).json({ error: activeError });
+        }
+      }
     }
 
-    const { password: newPassword, username, ...volunteerData } = updateData as any;
+    const { password: newPassword, username, sportIds, ...volunteerData } = updateData as any;
 
+    // Apply the update
     const volunteer = await prisma.volunteer.update({
       where: { id },
       data: volunteerData,
-      include: {
-        sport: true,
-      },
     });
+
+    // Update join table if sportIds is provided
+    if (sportIds !== undefined) {
+      await prisma.volunteerSport.deleteMany({
+        where: { volunteerId: id },
+      });
+      for (const sId of sportIds) {
+        await prisma.volunteerSport.create({
+          data: {
+            volunteerId: id,
+            sportId: sId,
+          },
+        });
+      }
+      // Also update the legacy sportId column to be the first sport in the list for compatibility
+      await prisma.volunteer.update({
+        where: { id },
+        data: { sportId: sportIds[0] || null },
+      });
+    } else if (updateData.sportId) {
+      // For single sport assignment, we add it to their existing sports if not already there
+      const existing = await prisma.volunteerSport.findUnique({
+        where: {
+          volunteerId_sportId: {
+            volunteerId: id,
+            sportId: updateData.sportId,
+          },
+        },
+      });
+      if (!existing) {
+        await prisma.volunteerSport.create({
+          data: {
+            volunteerId: id,
+            sportId: updateData.sportId,
+          },
+        });
+      }
+    } else if (updateData.sportId === null) {
+      // Clear all assignments
+      await prisma.volunteerSport.deleteMany({
+        where: { volunteerId: id },
+      });
+    }
 
     const userUpdateData: any = {};
     if (username !== undefined) {
@@ -365,7 +510,18 @@ router.patch("/:id", authenticate, requireRole("admin", "volunteer_admin"), asyn
       });
     }
 
-    res.json(hideInactiveVolunteerSport(volunteer));
+    const finalVolunteer = await prisma.volunteer.findUnique({
+      where: { id },
+      include: {
+        sports: {
+          include: {
+            sport: true,
+          },
+        },
+      },
+    });
+
+    res.json(formatVolunteer(finalVolunteer));
   } catch (error: any) {
     if (error.name === "ZodError") {
       return res.status(400).json({ error: "Invalid input", details: error.errors });
@@ -388,26 +544,29 @@ router.get("/export/:format", authenticate, requireRole("admin", "volunteer_admi
     const { sportId } = req.query;
     const where: any = {};
     if (sportId) {
-      where.sportId = sportId as string;
+      where.sports = {
+        some: {
+          sportId: sportId as string,
+        },
+      };
     }
 
     const volunteers = await prisma.volunteer.findMany({
       where,
       include: {
-        sport: true,
+        sports: {
+          include: {
+            sport: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
 
-    const exportData = volunteers.map(hideInactiveVolunteerSport).map((v) => {
+    const exportData = volunteers.map(formatVolunteer).map((v: any) => {
       let sportName = "-";
-      if (v.sport) {
-        if (v.sport.parentId) {
-          // We'd need to fetch parent, but for now just use sport name
-          sportName = v.sport.name;
-        } else {
-          sportName = v.sport.name;
-        }
+      if (v.sports && v.sports.length > 0) {
+        sportName = v.sports.map((s: any) => s.name).join(", ");
       }
       return {
         id: v.id,

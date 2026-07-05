@@ -2,28 +2,11 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
-import fs from "fs";
 import { prisma } from "../index";
 import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
+import { uploadToSupabase } from "../utils/supabase";
 
 const router = Router();
-
-// Configure multer for file uploads
-const uploadsDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, `image-${uniqueSuffix}${ext}`);
-  },
-});
 
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedMimes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
@@ -33,6 +16,8 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
     cb(new Error("Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed."));
   }
 };
+
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
@@ -191,20 +176,12 @@ router.post(
         return res.status(400).json({ error: "No image file provided" });
       }
 
-      // Get the base URL from the request
-      const protocol = req.protocol;
-      const host = req.get("host");
-      const imageUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      const imageUrl = await uploadToSupabase(req.file, `settings/image-${uniqueSuffix}${ext}`);
 
-      res.json({ url: imageUrl, filename: req.file.filename });
+      res.json({ url: imageUrl, filename: req.file.originalname });
     } catch (error: any) {
-      // If there's an error and a file was uploaded, delete it
-      if (req.file) {
-        const filePath = path.join(uploadsDir, req.file.filename);
-        fs.unlink(filePath, (err) => {
-          if (err) console.error("Error deleting file:", err);
-        });
-      }
       res.status(500).json({ error: error.message || "Failed to upload image" });
     }
   }

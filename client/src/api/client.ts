@@ -354,6 +354,29 @@ export const api = {
     return response.json();
   },
 
+  async uploadSportDrawsFile(file: File): Promise<{ url: string; filename: string }> {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const url = `${API_BASE_URL}/sports/upload-draws`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || error.message || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  },
+
   async uploadSportFormatPdf(
     file: File,
     sportName: string

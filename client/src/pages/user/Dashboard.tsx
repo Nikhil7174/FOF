@@ -598,7 +598,7 @@ export default function UserDashboard() {
                       id="firstName"
                       value={profileData.firstName}
                       onChange={(e) => handleProfileChange("firstName", e.target.value)}
-                      disabled={frozen}
+                      disabled={true}
                       placeholder="Enter first name"
                     />
                   </div>
@@ -608,7 +608,7 @@ export default function UserDashboard() {
                       id="middleName"
                       value={profileData.middleName}
                       onChange={(e) => handleProfileChange("middleName", e.target.value)}
-                      disabled={frozen}
+                      disabled={true}
                       placeholder="Enter middle name (optional)"
                     />
                   </div>
@@ -618,7 +618,7 @@ export default function UserDashboard() {
                       id="lastName"
                       value={profileData.lastName}
                       onChange={(e) => handleProfileChange("lastName", e.target.value)}
-                      disabled={frozen}
+                      disabled={true}
                       placeholder="Enter last name"
                     />
                   </div>
@@ -628,7 +628,7 @@ export default function UserDashboard() {
                       id="phone"
                       value={profileData.phone}
                       onChange={(e) => handleProfileChange("phone", e.target.value)}
-                      disabled={frozen}
+                      disabled={true}
                       placeholder="Enter phone number"
                     />
                   </div>
@@ -639,7 +639,7 @@ export default function UserDashboard() {
                       id="teamName"
                       value={profileData.teamName}
                       onChange={(e) => handleProfileChange("teamName", e.target.value)}
-                      disabled={frozen}
+                      disabled={true}
                       placeholder="Enter team name (optional)"
                     />
                   </div>
@@ -656,7 +656,7 @@ export default function UserDashboard() {
                           id="nextOfKinFirstName"
                           value={profileData.nextOfKin.firstName}
                           onChange={(e) => handleProfileChange("nextOfKin.firstName", e.target.value)}
-                          disabled={frozen}
+                          disabled={true}
                           placeholder="Enter first name"
                         />
                       </div>
@@ -666,7 +666,7 @@ export default function UserDashboard() {
                           id="nextOfKinMiddleName"
                           value={profileData.nextOfKin.middleName}
                           onChange={(e) => handleProfileChange("nextOfKin.middleName", e.target.value)}
-                          disabled={frozen}
+                          disabled={true}
                           placeholder="Enter middle name (optional)"
                         />
                       </div>
@@ -676,7 +676,7 @@ export default function UserDashboard() {
                           id="nextOfKinLastName"
                           value={profileData.nextOfKin.lastName}
                           onChange={(e) => handleProfileChange("nextOfKin.lastName", e.target.value)}
-                          disabled={frozen}
+                          disabled={true}
                           placeholder="Enter last name"
                         />
                       </div>
@@ -686,7 +686,7 @@ export default function UserDashboard() {
                           id="nextOfKinPhone"
                           value={profileData.nextOfKin.phone}
                           onChange={(e) => handleProfileChange("nextOfKin.phone", e.target.value)}
-                          disabled={frozen}
+                          disabled={true}
                           placeholder="Enter phone number"
                         />
                       </div>
@@ -701,7 +701,7 @@ export default function UserDashboard() {
                       id="notes"
                       value={profileData.notes}
                       onChange={(e) => handleProfileChange("notes", e.target.value)}
-                      disabled={frozen}
+                      disabled={true}
                       placeholder="Share any additional information about your sports registration (injuries, preferences, availability, etc.)"
                       className="min-h-[100px]"
                       maxLength={500}
@@ -711,16 +711,6 @@ export default function UserDashboard() {
                     </p>
                   </div>
                 )}
-
-                <div className="flex justify-end gap-3 pt-4 border-t">
-                  <Button
-                    variant="hero"
-                    onClick={handleSaveProfile}
-                    disabled={updateProfileMutation.isPending || frozen}
-                  >
-                    {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
-                  </Button>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -975,44 +965,46 @@ export default function UserDashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {volunteer?.sport ? (
+                  {volunteer?.sports && volunteer.sports.length > 0 ? (
                     <div className="space-y-4">
-                      <div className="border rounded-lg p-4 space-y-3">
-                        <div>
-                          <h3 className="text-xl font-semibold">{volunteer.sport.name}</h3>
-                          {volunteer.sport.type && (
-                            <p className="text-sm text-muted-foreground capitalize">
-                              Type: {volunteer.sport.type.toLowerCase().replace(/_/g, " ")}
-                            </p>
-                          )}
+                      {volunteer.sports.map((sport: any) => (
+                        <div key={sport.id} className="border rounded-lg p-4 space-y-3">
+                          <div>
+                            <h3 className="text-xl font-semibold">{sport.name}</h3>
+                            {sport.type && (
+                              <p className="text-sm text-muted-foreground capitalize">
+                                Type: {sport.type.toLowerCase().replace(/_/g, " ")}
+                              </p>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-muted-foreground">
+                            {sport.venue && (
+                              <div>
+                                <span className="font-medium text-foreground">Venue:</span>{" "}
+                                {sport.venue}
+                              </div>
+                            )}
+                            {sport.timings && (
+                              <div>
+                                <span className="font-medium text-foreground">Timings:</span>{" "}
+                                {sport.timings}
+                              </div>
+                            )}
+                            {sport.date && (
+                              <div>
+                                <span className="font-medium text-foreground">Start Date:</span>{" "}
+                                {new Date(sport.date).toLocaleDateString()}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-muted-foreground">
-                          {volunteer.sport.venue && (
-                            <div>
-                              <span className="font-medium text-foreground">Venue:</span>{" "}
-                              {volunteer.sport.venue}
-                            </div>
-                          )}
-                          {volunteer.sport.timings && (
-                            <div>
-                              <span className="font-medium text-foreground">Timings:</span>{" "}
-                              {volunteer.sport.timings}
-                            </div>
-                          )}
-                          {volunteer.sport.date && (
-                            <div>
-                              <span className="font-medium text-foreground">Start Date:</span>{" "}
-                              {new Date(volunteer.sport.date).toLocaleDateString()}
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          If you have any questions about your assignment, please contact the volunteer admin.
-                        </p>
-                      </div>
+                      ))}
+                      <p className="text-sm text-muted-foreground">
+                        If you have any questions about your assignments, please contact the volunteer admin.
+                      </p>
                     </div>
                   ) : (
-                    <div className="text-center text-muted-foreground">
+                    <div className="text-center text-muted-foreground py-8">
                       You haven&apos;t been assigned to any sports yet. The volunteer admin will assign you soon.
                     </div>
                   )}

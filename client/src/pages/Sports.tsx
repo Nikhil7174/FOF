@@ -3,7 +3,7 @@ import { SportRulesContent } from "@/components/SportRulesContent";
 import { SportFormatContent, hasSportFormat } from "@/components/SportFormatContent";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, Phone, Mail, BookOpen, LayoutGrid } from "lucide-react";
+import { Trophy, Mail, BookOpen, LayoutGrid } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api";
@@ -24,6 +24,7 @@ export default function Sports() {
   const activeConvenors = convenors.filter((convenor) => convenor.sport?.active !== false);
   const sportsWithRules = activeSports.filter((s) => s.rules?.trim() || s.rulesFileUrl);
   const sportsWithFormats = activeSports.filter((s) => hasSportFormat(s));
+  const sportsWithDraws = activeSports.filter((s) => s.drawsFileUrl);
 
   return (
     <div className="min-h-screen bg-background">
@@ -41,10 +42,11 @@ export default function Sports() {
         </div>
 
         <Tabs defaultValue="convenors" className="max-w-5xl mx-auto">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="convenors">Convenors</TabsTrigger>
             <TabsTrigger value="rules">Rules</TabsTrigger>
             <TabsTrigger value="formats">Formats</TabsTrigger>
+            <TabsTrigger value="draws">Draws / Fixtures</TabsTrigger>
           </TabsList>
 
           <TabsContent value="convenors" className="mt-6">
@@ -81,10 +83,6 @@ export default function Sports() {
                       <CardDescription>{convenor.sport?.name || "No sport assigned"}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{convenor.phone}</span>
-                      </div>
                       <div className="flex items-center gap-2 text-sm">
                         <Mail className="h-4 w-4 text-muted-foreground" />
                         <span>{convenor.email}</span>
@@ -159,6 +157,42 @@ export default function Sports() {
                         </AccordionTrigger>
                         <AccordionContent>
                           <SportFormatContent sport={sport} />
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="draws" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <LayoutGrid className="h-5 w-5 text-primary" />
+                  Sports Draws & Fixtures
+                </CardTitle>
+                <CardDescription>Expand any sport to view its draws / fixtures schedule</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingSports ? (
+                  <div className="space-y-4">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <Skeleton key={i} className="h-12 w-full" />
+                    ))}
+                  </div>
+                ) : sportsWithDraws.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">No draws or fixtures available.</p>
+                ) : (
+                  <Accordion type="multiple" className="w-full">
+                    {sportsWithDraws.map((sport) => (
+                      <AccordionItem key={sport.id} value={`draws-${sport.id}`}>
+                        <AccordionTrigger className="text-left">
+                          {sport.name}
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <SportRulesContent rules={null} rulesFileUrl={sport.drawsFileUrl} title="Official Draws/Fixtures Document" />
                         </AccordionContent>
                       </AccordionItem>
                     ))}

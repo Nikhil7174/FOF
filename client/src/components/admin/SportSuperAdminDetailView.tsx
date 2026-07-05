@@ -80,6 +80,10 @@ export function SportSuperAdminDetailView({ overviewOnly = false }: { overviewOn
   const [formatFileName, setFormatFileName] = useState("");
   const [isUploadingRules, setIsUploadingRules] = useState(false);
   const [isUploadingFormat, setIsUploadingFormat] = useState(false);
+  const [drawsFileUrl, setDrawsFileUrl] = useState("");
+  const [drawsFileName, setDrawsFileName] = useState("");
+  const [isUploadingDraws, setIsUploadingDraws] = useState(false);
+  const drawsUrlInputRef = React.useRef<HTMLInputElement>(null);
 
   const { data: sport, isLoading: isLoadingSport } = useQuery({
     queryKey: ["sport", user?.sportId],
@@ -140,6 +144,8 @@ export function SportSuperAdminDetailView({ overviewOnly = false }: { overviewOn
     setRulesFileName(sport.rulesFileUrl ? sport.rulesFileUrl.split("/").pop() || "Rules document" : "");
     setFormatFileUrl(sport.formatFileUrl || "");
     setFormatFileName(sport.formatFileUrl ? sport.formatFileUrl.split("/").pop() || "Format document" : "");
+    setDrawsFileUrl(sport.drawsFileUrl || "");
+    setDrawsFileName(sport.drawsFileUrl ? sport.drawsFileUrl.split("/").pop() || "Draws document" : "");
     form.reset({
       venue: sport.venue ?? "",
       timings: sport.timings ?? "",
@@ -185,6 +191,7 @@ export function SportSuperAdminDetailView({ overviewOnly = false }: { overviewOn
         formatGender: data.formatGender?.trim() || null,
         formatGeneral: data.formatGeneral?.trim() || null,
         formatFileUrl: formatFileUrl || null,
+        drawsFileUrl: drawsUrlInputRef.current?.value?.trim() || drawsFileUrl || null,
         notes: data.notes?.trim() || null,
       };
 
@@ -198,19 +205,19 @@ export function SportSuperAdminDetailView({ overviewOnly = false }: { overviewOn
 
       const updated = await api.updateSport(sport.id, sportData as any);
 
-      const hasConvenorData = data.convenorName?.trim() && data.convenorPhone?.trim() && data.convenorEmail?.trim();
+      const hasConvenorData = Boolean(data.convenorName?.trim());
       if (hasConvenorData) {
         if (convenor?.id) {
           await api.updateConvenor(convenor.id, {
             name: data.convenorName!.trim(),
-            phone: data.convenorPhone!.trim(),
-            email: data.convenorEmail!.trim(),
+            phone: data.convenorPhone?.trim() || "",
+            email: data.convenorEmail?.trim() || "",
           });
         } else {
           await api.createConvenor({
             name: data.convenorName!.trim(),
-            phone: data.convenorPhone!.trim(),
-            email: data.convenorEmail!.trim(),
+            phone: data.convenorPhone?.trim() || "",
+            email: data.convenorEmail?.trim() || "",
             sportId: sport.id,
           });
         }
@@ -271,6 +278,23 @@ export function SportSuperAdminDetailView({ overviewOnly = false }: { overviewOn
       toast({ title: "Upload failed", description: error?.message || "Could not extract format from PDF.", variant: "destructive" });
     } finally {
       setIsUploadingFormat(false);
+    }
+  };
+
+  const handleDrawsFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setIsUploadingDraws(true);
+    try {
+      const result = await api.uploadSportDrawsFile(file);
+      setDrawsFileUrl(result.url);
+      setDrawsFileName(result.filename);
+    } catch (error: any) {
+      toast({ title: "Upload failed", description: error?.message || "Could not upload draws file.", variant: "destructive" });
+    } finally {
+      setIsUploadingDraws(false);
     }
   };
 
@@ -464,30 +488,58 @@ export function SportSuperAdminDetailView({ overviewOnly = false }: { overviewOn
                 )}
               </div>
 
+              {/* Draws / Fixtures */}
               <div className="space-y-3 border rounded-lg p-4">
-                <Label className="text-base">Tournament Format</Label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="outline" size="sm" disabled={isUploadingFormat} onClick={() => document.getElementById("super-admin-format-file")?.click()}>
-                    {isUploadingFormat ? "Extracting..." : <><Upload className="h-4 w-4 mr-2" />Extract from PDF</>}
-                  </Button>
-                  <input id="super-admin-format-file" type="file" accept=".pdf" className="hidden" onChange={handleFormatPdfUpload} />
-                  {formatFileUrl && (
-                    <>
-                      <a href={formatFileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline inline-flex items-center gap-1">
-                        <FileText className="h-4 w-4" />{formatFileName || "Format PDF"}
-                      </a>
-                      <Button type="button" variant="outline" size="sm" className="text-destructive border-destructive/40" onClick={() => { setFormatFileUrl(""); setFormatFileName(""); }}>
-                        <X className="h-4 w-4 mr-1" />Remove PDF
-                      </Button>
-                    </>
-                  )}
+                <div>
+                  <Label className="text-base">Draws / Fixtures</Label>
+                  <p className="text-xs text-muted-foreground mt-1">Upload a PDF or paste a link. Shown on the public Draws &amp; Fixtures tab.</p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input placeholder="Category" {...form.register("formatCategory")} />
-                  <Input placeholder="Team format" {...form.register("formatTeam")} />
-                  <Input placeholder="Gender format" {...form.register("formatGender")} />
-                  <Input placeholder="General format" {...form.register("formatGeneral")} />
-                </div>
+                {drawsFileUrl ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <a href={drawsFileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline inline-flex items-center gap-1 max-w-[220px] truncate">
+                      <FileText className="h-4 w-4 shrink-0" />{drawsFileName || drawsFileUrl}
+                    </a>
+                    <Button type="button" variant="outline" size="sm" className="text-destructive border-destructive/40" onClick={() => { setDrawsFileUrl(""); setDrawsFileName(""); }}>
+                      <X className="h-4 w-4 mr-1" />Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Link (URL)</Label>
+                      <Input
+                        ref={drawsUrlInputRef}
+                        placeholder="https://example.com/fixture-draw"
+                        onBlur={(e) => {
+                          const val = e.target.value.trim();
+                          if (val) { setDrawsFileUrl(val); setDrawsFileName(""); }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const val = (e.target as HTMLInputElement).value.trim();
+                            if (val) { setDrawsFileUrl(val); setDrawsFileName(""); }
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="relative py-1">
+                      <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">or</span>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Upload PDF</Label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button type="button" variant="outline" size="sm" disabled={isUploadingDraws} onClick={() => document.getElementById("super-admin-draws-file")?.click()}>
+                          {isUploadingDraws ? "Uploading..." : <><Upload className="h-4 w-4 mr-2" />Upload PDF</>}
+                        </Button>
+                        <input id="super-admin-draws-file" type="file" accept=".pdf" className="hidden" onChange={handleDrawsFileUpload} />
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </form>
           )}
@@ -518,6 +570,20 @@ export function SportSuperAdminDetailView({ overviewOnly = false }: { overviewOn
           </CardHeader>
           <CardContent>
             <SportFormatContent sport={sport} />
+          </CardContent>
+        </Card>
+      )}
+
+      {(overviewOnly || !isEditing) && sport.drawsFileUrl && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <LayoutGrid className="h-5 w-5 text-primary" />
+              Draws / Fixtures
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SportRulesContent rules={null} rulesFileUrl={sport.drawsFileUrl} title="Official Draws/Fixtures Document" />
           </CardContent>
         </Card>
       )}
