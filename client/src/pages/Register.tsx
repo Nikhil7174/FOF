@@ -591,11 +591,11 @@ export default function Register() {
 
                 {/* Payment Details */}
                 <div className="pt-4 border-t">
-                  <Label htmlFor="notes">Payment Details *</Label>
+                  <Label htmlFor="notes">Details *</Label>
                   <Textarea
                     id="notes"
                     name="notes"
-                    placeholder="Please provide payment details (e.g., payment method, transaction ID, or payment confirmation details)."
+                    placeholder="Provide details by community if applicable."
                     required
                     disabled={isSubmitting}
                     value={notes}
