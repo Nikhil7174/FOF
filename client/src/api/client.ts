@@ -24,6 +24,7 @@ export interface CreateParticipantInput {
   };
   sports: string[];
   teamName?: string;
+  teamNames?: Record<string, string>; // sportId → team name
   notes?: string;
 }
 
@@ -260,6 +261,7 @@ export const api = {
       phone: string;
     };
     teamName?: string;
+    teamNames?: Record<string, string>; // sportId → team name
     notes?: string | null;
   }): Promise<Participant> {
     return request<Participant>("/participants/me", {

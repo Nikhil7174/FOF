@@ -91,6 +91,7 @@ const createParticipantSchema = z.object({
     ])
   ).min(1, "At least one sport must be selected"),
   teamName: z.string().optional(),
+  teamNames: z.record(z.string(), z.string()).optional(),
   notes: z.string().min(1, "Payment details are required").max(500),
 });
 
@@ -462,6 +463,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
       communityId: data.communityId,
       nextOfKin: data.nextOfKin as any,
       teamName: data.teamName ?? null,
+      teamNames: data.teamNames ? (data.teamNames as any) : undefined,
       userId: user.id,
       sports: {
         create: data.sports.map((s: any) => {
@@ -713,6 +715,7 @@ router.patch("/me", authenticate, async (req: AuthRequest, res: Response) => {
         phone: z.string().min(1),
       }).optional(),
       teamName: z.string().optional().nullable(),
+      teamNames: z.record(z.string(), z.string()).optional().nullable(),
       notes: z.string().max(500).optional().nullable(),
     });
 
@@ -733,6 +736,7 @@ router.patch("/me", authenticate, async (req: AuthRequest, res: Response) => {
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.nextOfKin !== undefined) updateData.nextOfKin = data.nextOfKin as any;
     if (data.teamName !== undefined) updateData.teamName = data.teamName;
+    if (data.teamNames !== undefined) updateData.teamNames = data.teamNames as any;
     if (data.notes !== undefined) {
       updateData.notes = data.notes && data.notes.trim().length > 0 ? data.notes.trim() : null;
     }
@@ -1179,6 +1183,9 @@ router.post(
       
       // Extract sports (comma-separated list)
       const sportsStr = normalizedRow.sports?.toString().trim() || "";
+
+      // Extract teamNames column (format: "SportName: TeamName, Sport2: TeamName2")
+      const teamNamesStr = normalizedRow.teamNames?.toString().trim() || normalizedRow.teamnames?.toString().trim() || "";
       
       // Extract community (optional - will use admin's community if not provided)
       const communityName = normalizedRow.community?.toString().trim() || "";
@@ -1440,6 +1447,45 @@ router.post(
           },
         });
 
+        // Build teamNames map from the teamNames column
+        const teamNamesMap: Record<string, string> = {};
+        const teamSports = matchedSports.filter((s) => (s as any).requiresTeamName);
+        const teamNameErrors: string[] = [];
+
+        if (teamNamesStr) {
+          // Parse "SportName: TeamName, Sport2: TeamName2" format
+          const entries = teamNamesStr.split(",");
+          for (const entry of entries) {
+            const colonIdx = entry.indexOf(":");
+            if (colonIdx === -1) continue;
+            const sportNameKey = entry.slice(0, colonIdx).trim().toLowerCase();
+            const teamNameVal = entry.slice(colonIdx + 1).trim();
+            // Match sport name to one of the matched sports
+            const matched = matchedSports.find(
+              (s) => s.name.toLowerCase() === sportNameKey ||
+                     (s.parent && `${s.parent.name} - ${s.name}`.toLowerCase() === sportNameKey)
+            );
+            if (matched && teamNameVal) {
+              teamNamesMap[matched.id] = teamNameVal;
+            }
+          }
+        }
+
+        // Validate: all team sports must have a team name
+        for (const teamSport of teamSports) {
+          if (!teamNamesMap[teamSport.id]) {
+            teamNameErrors.push(`Team name required for "${teamSport.name}" — add it to the teamNames column (e.g., "${teamSport.name}: Your Team Name")`);
+          }
+        }
+
+        if (teamNameErrors.length > 0) {
+          results.errorCount++;
+          results.errors.push({ row: rowNumber, email, errors: teamNameErrors });
+          // Clean up the created user
+          await prisma.user.delete({ where: { id: user.id } }).catch(() => {});
+          continue;
+        }
+
         // Create participant with accepted status, including nextOfKin and notes
         const participant = await prisma.participant.create({
           data: {
@@ -1454,6 +1500,7 @@ router.post(
             userId: user.id,
             status: ParticipantStatus.accepted,
             notes: paymentDetails || null,
+            teamNames: Object.keys(teamNamesMap).length > 0 ? teamNamesMap as any : undefined,
             nextOfKin: {
               firstName: nextOfKinFirstName,
               middleName: nextOfKinMiddleName || undefined,
@@ -1543,6 +1590,16 @@ router.get("/export/:format", authenticate, requireRole("admin", "community_admi
       }).join(", ");
 
       const nextOfKin = p.nextOfKin as any;
+      // Build teamNames display string: "SportName: TeamName, ..."
+      const teamNamesObj = (p.teamNames as Record<string, string> | null) || {};
+      const teamNamesDisplay = Object.keys(teamNamesObj).length > 0
+        ? Object.entries(teamNamesObj)
+            .map(([sportId, name]) => {
+              const sport = p.sports.find((ps: any) => ps.sport?.id === sportId)?.sport;
+              return sport ? `${sport.name}: ${name}` : `${sportId}: ${name}`;
+            })
+            .join(", ")
+        : "";
       return {
         username: p.user?.username || "",
         firstName: p.firstName,
@@ -1555,6 +1612,7 @@ router.get("/export/:format", authenticate, requireRole("admin", "community_admi
         community: p.community?.name || "-",
         sports: sportsList || "-",
         teamName: p.teamName || "",
+        teamNames: teamNamesDisplay,
         status: p.status,
         nextOfKinFirstName: nextOfKin?.firstName || "",
         nextOfKinMiddleName: nextOfKin?.middleName || "",
@@ -1567,7 +1625,7 @@ router.get("/export/:format", authenticate, requireRole("admin", "community_admi
 
     const headers = [
       "username", "firstName", "middleName", "lastName", "gender", "dob", "email", "phone",
-      "community", "sports", "teamName", "status",
+      "community", "sports", "teamName", "teamNames", "status",
       "nextOfKinFirstName", "nextOfKinMiddleName", "nextOfKinLastName", "nextOfKinPhone",
       "createdAt", "updatedAt"
     ];

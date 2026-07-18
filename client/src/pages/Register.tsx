@@ -19,6 +19,7 @@ const usernamePattern = /^[a-zA-Z0-9_.-]{3,30}$/;
 export default function Register() {
   const { toast } = useToast();
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
+  const [teamNames, setTeamNames] = useState<Record<string, string>>({}); // sportId → team name
   const [agreedToIndemnity, setAgreedToIndemnity] = useState(false);
   const [gender, setGender] = useState<string>("");
   const [communityId, setCommunityId] = useState<string>("");
@@ -44,7 +45,7 @@ export default function Register() {
   // Auto-open sports section when all required fields are filled
   useEffect(() => {
     // Check if all required fields are filled
-    const allFieldsFilled = 
+    const allFieldsFilled =
       firstName.trim() &&
       lastName.trim() &&
       gender &&
@@ -188,10 +189,9 @@ export default function Register() {
     getIncompatibilityReason(sport) || getAgeRestrictionReason(sport) || getGenderRestrictionReason(sport);
 
   const getSportLabelClass = (isUnavailable: boolean, isDisabled: boolean) =>
-    `text-sm font-normal ${
-      isUnavailable
-        ? "cursor-not-allowed rounded px-1 text-destructive bg-destructive/10"
-        : isDisabled
+    `text-sm font-normal ${isUnavailable
+      ? "cursor-not-allowed rounded px-1 text-destructive bg-destructive/10"
+      : isDisabled
         ? "cursor-not-allowed opacity-50"
         : "cursor-pointer"
     }`;
@@ -199,24 +199,24 @@ export default function Register() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const trimmedUsername = username.trim();
-    
+
     if (!agreedToIndemnity) {
       toast({ title: "Agreement Required", description: "Please agree to the terms and disclaimer before submitting.", variant: "destructive" });
       return;
     }
-    
+
     // Validate community selection
     if (!communityId || communityId.trim() === "") {
       toast({ title: "Community Required", description: "Please select a community.", variant: "destructive" });
       return;
     }
-    
+
     // Validate sports selection
     if (selectedSports.length === 0) {
       toast({ title: "Sports Required", description: "Please select at least one sport.", variant: "destructive" });
       return;
     }
-    
+
     // Validate gender selection
     if (!gender || (gender !== "male" && gender !== "female")) {
       toast({ title: "Gender Required", description: "Please select a gender.", variant: "destructive" });
@@ -242,19 +242,19 @@ export default function Register() {
       toast({ title: "Username Unavailable", description: usernameFeedback || "Please choose a different username.", variant: "destructive" });
       return;
     }
-    
+
     // Validate password
     if (!password || password.length < 6) {
       toast({ title: "Password Required", description: "Password must be at least 6 characters long.", variant: "destructive" });
       return;
     }
-    
+
     // Validate password confirmation
     if (password !== confirmPassword) {
       toast({ title: "Password Mismatch", description: "Passwords do not match. Please try again.", variant: "destructive" });
       return;
     }
-    
+
     // Validate payment details (notes)
     const trimmedNotes = notes.trim();
     if (!trimmedNotes) {
@@ -274,7 +274,20 @@ export default function Register() {
       });
       return;
     }
-    
+
+    // Validate team names for team sports
+    const teamSportsWithoutName = selectedSports
+      .map((id) => activeSports.find((s) => s.id === id))
+      .filter((s): s is NonNullable<typeof s> => !!s && (s as any).requiresTeamName && !teamNames[s.id]?.trim());
+    if (teamSportsWithoutName.length > 0) {
+      toast({
+        title: "Team Name Required",
+        description: `Please enter a team name for: ${teamSportsWithoutName.map((s) => s.name).join(", ")}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const form = new FormData(e.currentTarget);
 
     const payload: CreateParticipantInput = {
@@ -295,20 +308,21 @@ export default function Register() {
         phone: String(form.get("kinPhone") || ""),
       },
       sports: selectedSports.filter((sportId) => sportId && sportId.trim() !== ""),
+      teamNames: Object.keys(teamNames).length > 0 ? teamNames : undefined,
       notes: trimmedNotes,
     };
-    
+
     // Final validation: ensure we still have sports after filtering
     if (payload.sports.length === 0) {
       toast({ title: "Sports Required", description: "Please select at least one valid sport.", variant: "destructive" });
       return;
     }
-    
+
     setIsSubmitting(true);
-    
+
     try {
       await api.createParticipant(payload);
-      
+
       // Try to send confirmation email, but don't fail if it doesn't work
       try {
         await api.sendRegistrationConfirmation(payload.email);
@@ -316,13 +330,13 @@ export default function Register() {
         // Email failed, but registration succeeded - log it but continue
         console.log("Could not send confirmation email:", emailError);
       }
-      
-      toast({ 
-        title: "🎉 Registration Successful!", 
+
+      toast({
+        title: "🎉 Registration Successful!",
         description: `Your account has been created! Use your username (${trimmedUsername}) and password to log in once approved.`,
         duration: 5000,
       });
-      
+
       // Wait a moment to show the success message, then redirect to login
       setTimeout(() => {
         navigate("/login");
@@ -330,7 +344,7 @@ export default function Register() {
     } catch (err: any) {
       // Extract error message from various possible error formats
       let errorMessage = "Something went wrong. Please try again.";
-      
+
       // Check for validation errors with details array
       if (err?.details && Array.isArray(err.details) && err.details.length > 0) {
         // Format validation errors nicely
@@ -356,10 +370,10 @@ export default function Register() {
       } else if (err?.response?.data?.message) {
         errorMessage = err.response.data.message;
       }
-      
-      toast({ 
-        title: "Registration Failed", 
-        description: errorMessage, 
+
+      toast({
+        title: "Registration Failed",
+        description: errorMessage,
         variant: "destructive",
         duration: 5000,
       });
@@ -371,9 +385,10 @@ export default function Register() {
     const sport = activeSports.find((s) => s.id === sportId);
     if (!sport) return;
 
-    // If deselecting, just remove it
+    // If deselecting, remove sport and its team name
     if (selectedSports.includes(sportId)) {
       setSelectedSports((prev) => prev.filter((id) => id !== sportId));
+      setTeamNames((prev) => { const next = { ...prev }; delete next[sportId]; return next; });
       return;
     }
 
@@ -390,15 +405,15 @@ export default function Register() {
     // Check for incompatible sports before adding
     const incompatibleIds = (sport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
     const hasIncompatible = selectedSports.some((selectedId) => incompatibleIds.includes(selectedId));
-    
+
     if (hasIncompatible) {
-      const incompatibleSport = activeSports.find((s) => 
+      const incompatibleSport = activeSports.find((s) =>
         selectedSports.includes(s.id) && incompatibleIds.includes(s.id)
       );
-      toast({ 
-        title: "Incompatible Sports", 
-        description: `Cannot select ${sport.name} with ${incompatibleSport?.name || 'the selected sport(s)'}. These sports are incompatible.`, 
-        variant: "destructive" 
+      toast({
+        title: "Incompatible Sports",
+        description: `Cannot select ${sport.name} with ${incompatibleSport?.name || 'the selected sport(s)'}. These sports are incompatible.`,
+        variant: "destructive"
       });
       return;
     }
@@ -409,10 +424,10 @@ export default function Register() {
       if (selectedSport) {
         const selectedIncompatibleIds = (selectedSport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
         if (selectedIncompatibleIds.includes(sportId)) {
-          toast({ 
-            title: "Incompatible Sports", 
-            description: `Cannot select ${sport.name} with ${selectedSport.name}. These sports are incompatible.`, 
-            variant: "destructive" 
+          toast({
+            title: "Incompatible Sports",
+            description: `Cannot select ${sport.name} with ${selectedSport.name}. These sports are incompatible.`,
+            variant: "destructive"
           });
           return;
         }
@@ -429,15 +444,15 @@ export default function Register() {
     isCheckingUsername
       ? "text-muted-foreground"
       : usernameFeedback
-      ? isUsernameAvailable
-        ? "text-emerald-600"
-        : "text-destructive"
-      : "text-muted-foreground";
+        ? isUsernameAvailable
+          ? "text-emerald-600"
+          : "text-destructive"
+        : "text-muted-foreground";
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-8 animate-fade-in">
@@ -503,7 +518,7 @@ export default function Register() {
 
                 <div className="space-y-2">
                   <Label htmlFor="username">Create a Username *</Label>
-                  <Input 
+                  <Input
                     id="username"
                     name="username"
                     type="text"
@@ -523,12 +538,12 @@ export default function Register() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="password">Password *</Label>
-                    <Input 
-                      id="password" 
-                      name="password" 
-                      type="password" 
-                      placeholder="At least 6 characters" 
-                      required 
+                    <Input
+                      id="password"
+                      name="password"
+                      type="password"
+                      placeholder="At least 6 characters"
+                      required
                       disabled={isSubmitting}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -537,12 +552,12 @@ export default function Register() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Confirm Password *</Label>
-                    <Input 
-                      id="confirmPassword" 
-                      name="confirmPassword" 
-                      type="password" 
-                      placeholder="Re-enter your password" 
-                      required 
+                    <Input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type="password"
+                      placeholder="Re-enter your password"
+                      required
                       disabled={isSubmitting}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
@@ -617,125 +632,146 @@ export default function Register() {
                   >
                     <h3 className="text-lg font-semibold">Sports Selection *</h3>
                     <ChevronDown
-                      className={`h-5 w-5 transition-transform duration-200 ${
-                        isSportsSectionOpen ? "transform rotate-180" : ""
-                      }`}
+                      className={`h-5 w-5 transition-transform duration-200 ${isSportsSectionOpen ? "transform rotate-180" : ""
+                        }`}
                     />
                   </button>
                   {isSportsSectionOpen && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {activeSports
-                      .filter((s: any) => !s.parentId)
-                      .map((parent: any) => {
-                        const children = activeSports.filter((s: any) => s.parentId === parent.id);
-                        const hasChildren = children.length > 0;
-                        
-                        return (
-                          <div key={parent.id} className="space-y-2">
-                            {hasChildren ? (
-                              // If parent has children, only show children as selectable
-                              <>
-                                <div className="font-medium">{parent.name}</div>
-                                <div className="ml-4 space-y-2">
-                                  {children.map((child: any) => {
-                                    // Check if this child is incompatible with any selected sport
-                                    const childIncompatibleIds = (child as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
-                                    const isIncompatibleWithSelected = selectedSports.some((selectedId) => 
-                                      childIncompatibleIds.includes(selectedId)
+                      {activeSports
+                        .filter((s: any) => !s.parentId)
+                        .map((parent: any) => {
+                          const children = activeSports.filter((s: any) => s.parentId === parent.id);
+                          const hasChildren = children.length > 0;
+
+                          return (
+                            <div key={parent.id} className="space-y-2">
+                              {hasChildren ? (
+                                // If parent has children, only show children as selectable
+                                <>
+                                  <div className="font-medium">{parent.name}</div>
+                                  <div className="ml-4 space-y-2">
+                                    {children.map((child: any) => {
+                                      // Check if this child is incompatible with any selected sport
+                                      const childIncompatibleIds = (child as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
+                                      const isIncompatibleWithSelected = selectedSports.some((selectedId) =>
+                                        childIncompatibleIds.includes(selectedId)
+                                      );
+
+                                      // Check if any selected sport is incompatible with this child
+                                      let isIncompatibleFromSelected = false;
+                                      for (const selectedId of selectedSports) {
+                                        const selectedSport = activeSports.find((s: any) => s.id === selectedId);
+                                        if (selectedSport) {
+                                          const selectedIncompatibleIds = (selectedSport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
+                                          if (selectedIncompatibleIds.includes(child.id)) {
+                                            isIncompatibleFromSelected = true;
+                                            break;
+                                          }
+                                        }
+                                      }
+
+                                      const isSelected = selectedSports.includes(child.id);
+                                      const isUnavailable =
+                                        Boolean(getAgeRestrictionReason(child) || getGenderRestrictionReason(child)) ||
+                                        (selectedSports.length > 0 && (isIncompatibleWithSelected || isIncompatibleFromSelected) && !isSelected);
+                                      const isDisabled = isSubmitting || (isUnavailable && !isSelected);
+
+                                      return (
+                                        <div key={child.id} className="flex flex-col gap-1">
+                                          <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                              id={`sport-${child.id}`}
+                                              checked={isSelected}
+                                              onCheckedChange={() => toggleSport(child.id)}
+                                              disabled={isDisabled}
+                                            />
+                                            <Label
+                                              htmlFor={`sport-${child.id}`}
+                                              className={getSportLabelClass(isUnavailable, isDisabled)}
+                                            >
+                                              {child.name}
+                                            </Label>
+                                          </div>
+                                          {isSelected && (child as any).requiresTeamName && (
+                                            <Input
+                                              className="ml-6 h-7 w-64 text-sm"
+                                              placeholder={`Team name for ${child.name}`}
+                                              value={teamNames[child.id] || ""}
+                                              onChange={(e) => setTeamNames((prev) => ({ ...prev, [child.id]: e.target.value }))}
+                                              disabled={isSubmitting}
+                                            />
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </>
+                              ) : (
+                                // If parent has no children, show parent as selectable
+                                <div className="flex flex-col gap-1">
+                                  {(() => {
+                                    // Check if this parent is incompatible with any selected sport
+                                    const parentIncompatibleIds = (parent as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
+                                    const isIncompatibleWithSelected = selectedSports.some((selectedId) =>
+                                      parentIncompatibleIds.includes(selectedId)
                                     );
-                                    
-                                    // Check if any selected sport is incompatible with this child
+
+                                    // Check if any selected sport is incompatible with this parent
                                     let isIncompatibleFromSelected = false;
                                     for (const selectedId of selectedSports) {
                                       const selectedSport = activeSports.find((s: any) => s.id === selectedId);
                                       if (selectedSport) {
                                         const selectedIncompatibleIds = (selectedSport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
-                                        if (selectedIncompatibleIds.includes(child.id)) {
+                                        if (selectedIncompatibleIds.includes(parent.id)) {
                                           isIncompatibleFromSelected = true;
                                           break;
                                         }
                                       }
                                     }
-                                    
-                                    const isSelected = selectedSports.includes(child.id);
+
+                                    const isSelected = selectedSports.includes(parent.id);
                                     const isUnavailable =
-                                      Boolean(getAgeRestrictionReason(child) || getGenderRestrictionReason(child)) ||
+                                      Boolean(getAgeRestrictionReason(parent) || getGenderRestrictionReason(parent)) ||
                                       (selectedSports.length > 0 && (isIncompatibleWithSelected || isIncompatibleFromSelected) && !isSelected);
                                     const isDisabled = isSubmitting || (isUnavailable && !isSelected);
-                                    
+
                                     return (
-                                      <div key={child.id} className="flex items-center space-x-2">
-                                        <Checkbox
-                                          id={`sport-${child.id}`}
-                                          checked={isSelected}
-                                          onCheckedChange={() => toggleSport(child.id)}
-                                          disabled={isDisabled}
-                                        />
-                                        <Label 
-                                          htmlFor={`sport-${child.id}`} 
-                                          className={getSportLabelClass(isUnavailable, isDisabled)}
-                                        >
-                                          {child.name}
-                                        </Label>
-                                      </div>
+                                      <>
+                                        <div className="flex items-center space-x-2">
+                                          <Checkbox
+                                            id={`sport-${parent.id}`}
+                                            checked={isSelected}
+                                            onCheckedChange={() => toggleSport(parent.id)}
+                                            disabled={isDisabled}
+                                          />
+                                          <Label
+                                            htmlFor={`sport-${parent.id}`}
+                                            className={getSportLabelClass(isUnavailable, isDisabled)}
+                                          >
+                                            {parent.name}
+                                          </Label>
+                                        </div>
+                                        {isSelected && (parent as any).requiresTeamName && (
+                                          <Input
+                                            className="ml-6 h-7 w-64 text-sm"
+                                            placeholder={`Team name for ${parent.name}`}
+                                            value={teamNames[parent.id] || ""}
+                                            onChange={(e) => setTeamNames((prev) => ({ ...prev, [parent.id]: e.target.value }))}
+                                            disabled={isSubmitting}
+                                          />
+                                        )}
+                                      </>
                                     );
-                                  })}
+                                  })()}
                                 </div>
-                              </>
-                            ) : (
-                              // If parent has no children, show parent as selectable
-                              <div className="flex items-center space-x-2">
-                                {(() => {
-                                  // Check if this parent is incompatible with any selected sport
-                                  const parentIncompatibleIds = (parent as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
-                                  const isIncompatibleWithSelected = selectedSports.some((selectedId) => 
-                                    parentIncompatibleIds.includes(selectedId)
-                                  );
-                                  
-                                  // Check if any selected sport is incompatible with this parent
-                                  let isIncompatibleFromSelected = false;
-                                  for (const selectedId of selectedSports) {
-                                    const selectedSport = activeSports.find((s: any) => s.id === selectedId);
-                                    if (selectedSport) {
-                                      const selectedIncompatibleIds = (selectedSport as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
-                                      if (selectedIncompatibleIds.includes(parent.id)) {
-                                        isIncompatibleFromSelected = true;
-                                        break;
-                                      }
-                                    }
-                                  }
-                                  
-                                  const isSelected = selectedSports.includes(parent.id);
-                                  const isUnavailable =
-                                    Boolean(getAgeRestrictionReason(parent) || getGenderRestrictionReason(parent)) ||
-                                    (selectedSports.length > 0 && (isIncompatibleWithSelected || isIncompatibleFromSelected) && !isSelected);
-                                  const isDisabled = isSubmitting || (isUnavailable && !isSelected);
-                                  
-                                  return (
-                                    <>
-                                      <Checkbox
-                                        id={`sport-${parent.id}`}
-                                        checked={isSelected}
-                                        onCheckedChange={() => toggleSport(parent.id)}
-                                        disabled={isDisabled}
-                                      />
-                                      <Label 
-                                        htmlFor={`sport-${parent.id}`} 
-                                        className={getSportLabelClass(isUnavailable, isDisabled)}
-                                      >
-                                        {parent.name}
-                                      </Label>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
                   )}
-                  
+
                 </div>
 
                 {/* Terms & disclaimer */}

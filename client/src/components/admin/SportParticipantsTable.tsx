@@ -89,7 +89,17 @@ export function SportParticipantsTable() {
                       <TableCell>{p.email}</TableCell>
                       <TableCell>{p.phone}</TableCell>
                       <TableCell>{comm?.name || "-"}</TableCell>
-                      <TableCell>{p.teamName || "-"}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const teamNamesObj = (p.teamNames as Record<string, string> | null) || {};
+                          // Find team name for any sport this participant has (show all, since sports admin sees their sport's participants)
+                          const teamNameEntries = Object.entries(teamNamesObj);
+                          if (teamNameEntries.length > 0) {
+                            return teamNameEntries.map(([, name]) => name).join(", ");
+                          }
+                          return p.teamName || "-";
+                        })()}
+                      </TableCell>
                       <TableCell>
                         <ParticipantStatusBadge status={p.status} />
                       </TableCell>

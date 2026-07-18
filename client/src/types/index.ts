@@ -33,6 +33,7 @@ export interface Participant {
   status: "pending" | "accepted" | "rejected";
   pendingSports?: string[] | null;
   teamName?: string;
+  teamNames?: Record<string, string>; // sportId → team name
   notes?: string | null;
   createdAt: string;
   // Helper to get sport IDs array

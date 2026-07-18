@@ -141,6 +141,7 @@ export function CommunityParticipantsTable() {
       "nextOfKinPhone *",
       "paymentDetails *",
       "sports *",
+      "teamNames",
       "community *"
     ];
     
@@ -161,6 +162,7 @@ export function CommunityParticipantsTable() {
       "+254700000000",
       "Payment via M-Pesa, Transaction ID: ABC123XYZ",
       "Football, Basketball, Athletics - 100m Sprint",
+      "Football: Team Alpha",
       "Nairobi Central"
     ];
     
@@ -181,6 +183,7 @@ export function CommunityParticipantsTable() {
       "+254711111111",
       "Payment confirmed via bank transfer, Ref: BANK123",
       "Swimming, Athletics - Long Jump",
+      "",
       "Nairobi Central"
     ];
     
@@ -214,6 +217,7 @@ export function CommunityParticipantsTable() {
       { wch: 18 }, // nextOfKinPhone
       { wch: 40 }, // paymentDetails
       { wch: 30 }, // sports
+      { wch: 45 }, // teamNames
       { wch: 20 }, // community
     ];
     worksheet["!cols"] = colWidths;
@@ -239,6 +243,10 @@ export function CommunityParticipantsTable() {
       ["- nextOfKinPhone *: Next of kin's phone number"],
       ["- paymentDetails *: Payment details or other registration notes"],
       ["- sports *: At least one sport required. Comma-separated list of sport names (see 'Sports Reference' sheet)"],
+      ["- teamNames: Team name(s) for team sports. Format: 'SportName: TeamName, Sport2: TeamName2'"],
+      ["  Example: 'Football: Team Alpha' or 'Football: Team Alpha, Cricket: Team Beta'"],
+      ["  Only required for sports marked 'Yes' in the 'Requires Team Name?' column of the Sports Reference sheet."],
+      ["  Leave blank if none of your selected sports require a team name."],
       ["- community *: Community name (must be specified)"],
       [""],
       ["OPTIONAL FIELDS (Can be left empty):"],
@@ -260,11 +268,6 @@ export function CommunityParticipantsTable() {
       ["- Username: Must be 3-30 characters, letters, numbers, underscores, hyphens, or dots"],
       ["- Password: Minimum 6 characters required"],
       ["- Community: Must match an existing community name in the system"],
-      [""],
-      ["BULK UPLOAD LIMITATIONS:"],
-      ["- Currently processes: firstName, lastName, middleName, email, phone, dob, gender, username, password"],
-      ["- Additional fields (nextOfKin, paymentDetails, sports, community) are included for reference"],
-      ["- These additional fields can be added/edited after upload through the participant management interface"],
     ];
     
     const instructionsSheet = XLSX.utils.aoa_to_sheet(instructionsData);
@@ -272,7 +275,7 @@ export function CommunityParticipantsTable() {
     XLSX.utils.book_append_sheet(workbook, instructionsSheet, "Instructions");
 
     // Create sports reference sheet using live data
-    const sportsReferenceHeader = ["Sport Category", "Selectable Name"];
+    const sportsReferenceHeader = ["Sport Category", "Selectable Name", "Requires Team Name?"];
     const sportsReferenceRows = [sportsReferenceHeader];
 
     const parentSports = sports.filter((sport: any) => !sport.parentId);
@@ -284,20 +287,21 @@ export function CommunityParticipantsTable() {
         .sort((a: any, b: any) => a.name.localeCompare(b.name));
 
       if (childSports.length === 0) {
-        sportsReferenceRows.push(["-", parent.name]);
+        sportsReferenceRows.push(["-", parent.name, parent.requiresTeamName ? "Yes" : "No"]);
       } else {
-        sportsReferenceRows.push([parent.name, "(Parent Category - not selectable)"]);
+        sportsReferenceRows.push([parent.name, "(Parent Category - not selectable)", ""]);
         childSports.forEach((child: any) => {
           sportsReferenceRows.push([
             parent.name,
             `${parent.name} - ${child.name}`,
+            child.requiresTeamName ? "Yes" : "No",
           ]);
         });
       }
     });
 
     const sportsSheet = XLSX.utils.aoa_to_sheet(sportsReferenceRows);
-    sportsSheet["!cols"] = [{ wch: 30 }, { wch: 40 }];
+    sportsSheet["!cols"] = [{ wch: 30 }, { wch: 40 }, { wch: 22 }];
     XLSX.utils.book_append_sheet(workbook, sportsSheet, "Sports Reference");
     
     // Generate Excel file and download
@@ -399,6 +403,7 @@ export function CommunityParticipantsTable() {
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Sports</TableHead>
+                <TableHead>Team Names</TableHead>
                 <TableHead>Payment Details</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -412,6 +417,7 @@ export function CommunityParticipantsTable() {
                     <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
@@ -419,7 +425,7 @@ export function CommunityParticipantsTable() {
                 ))
               ) : communityParticipants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
                     No participants registered for this community yet.
                   </TableCell>
                 </TableRow>
@@ -455,6 +461,22 @@ export function CommunityParticipantsTable() {
                             )}
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {(() => {
+                          const teamNamesObj = (p.teamNames as Record<string, string> | null) || {};
+                          const entries = Object.entries(teamNamesObj);
+                          if (entries.length === 0) return <span className="text-muted-foreground">-</span>;
+                          return (
+                            <div className="space-y-1">
+                              {entries.map(([sportId, name]) => {
+                                const sport = (sports as any[]).find((s: any) => s.id === sportId);
+                                const sportName = sport?.name || sportId;
+                                return <div key={sportId} className="text-xs"><span className="font-medium">{sportName}:</span> {name}</div>;
+                              })}
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="max-w-xs">
                         {p.notes ? (

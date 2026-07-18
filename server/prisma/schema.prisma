@@ -79,6 +79,7 @@ model Participant {
   nextOfKin     Json // { firstName, middleName?, lastName, phone }
   status        ParticipantStatus @default(pending)
   teamName      String?
+  teamNames     Json?            // { sportId: teamName } — per-sport team names
   notes         String?
   pendingSports Json?            // Array of sport IDs for pending approval
   createdAt     DateTime         @default(now())

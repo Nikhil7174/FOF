@@ -40,6 +40,7 @@ export default function UserDashboard() {
     teamName: "",
     notes: "",
   });
+  const [teamNames, setTeamNames] = useState<Record<string, string>>({}); // sportId → team name
 
   type VolunteerWithSport = VolunteerEntry & { sport?: SportRecord | null };
 
@@ -176,6 +177,8 @@ export default function UserDashboard() {
         teamName: participant.teamName || "",
         notes: participant.notes || "",
       });
+      // Initialize teamNames from participant
+      setTeamNames((participant.teamNames as Record<string, string>) || {});
     } else if (volunteer) {
       // Initialize profile data for volunteers
       setProfileData({
@@ -260,9 +263,10 @@ export default function UserDashboard() {
     const sport = activeSports.find((s: any) => s.id === sportId);
     if (!sport) return;
 
-    // If deselecting, just remove it
+    // If deselecting, remove sport and clear its team name
     if (selectedSports.includes(sportId)) {
       setSelectedSports((prev) => prev.filter((id) => id !== sportId));
+      setTeamNames((prev) => { const next = { ...prev }; delete next[sportId]; return next; });
       return;
     }
 
@@ -331,6 +335,8 @@ export default function UserDashboard() {
     if (profileData.lastName?.trim()) cleanedData.lastName = profileData.lastName.trim();
     if (profileData.phone?.trim()) cleanedData.phone = profileData.phone.trim();
     if (profileData.teamName?.trim()) cleanedData.teamName = profileData.teamName.trim();
+    // Include teamNames (per-sport team names) — send even if empty to allow clearing
+    if (Object.keys(teamNames).length > 0) cleanedData.teamNames = teamNames;
     if (user?.role === "user" && profileData.notes !== undefined) {
       cleanedData.notes = profileData.notes.trim();
     }
@@ -367,6 +373,19 @@ export default function UserDashboard() {
       toast({
         title: "Sport Not Eligible",
         description: `${unavailableSelectedSport.name}: ${reason}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate team names for team sports
+    const teamSportsWithoutName = selectedSports
+      .map((id) => activeSports.find((s: any) => s.id === id))
+      .filter((s): s is NonNullable<typeof s> => !!s && (s as any).requiresTeamName && !teamNames[s.id]?.trim());
+    if (teamSportsWithoutName.length > 0) {
+      toast({
+        title: "Team Name Required",
+        description: `Please enter a team name for: ${teamSportsWithoutName.map((s: any) => s.name).join(", ")}`,
         variant: "destructive",
       });
       return;
@@ -632,18 +651,31 @@ export default function UserDashboard() {
                       placeholder="Enter phone number"
                     />
                   </div>
-                {user.role === "user" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="teamName">Team Name</Label>
-                    <Input
-                      id="teamName"
-                      value={profileData.teamName}
-                      onChange={(e) => handleProfileChange("teamName", e.target.value)}
-                      disabled={true}
-                      placeholder="Enter team name (optional)"
-                    />
-                  </div>
-                )}
+                {user.role === "user" && (() => {
+                  // Show team name inputs for each team sport the participant has
+                  const teamSports = selectedSports
+                    .map((id) => activeSports.find((s: any) => s.id === id))
+                    .filter((s): s is NonNullable<typeof s> => !!s && (s as any).requiresTeamName);
+                  if (teamSports.length === 0) return null;
+                  return (
+                    <div className="space-y-3 pt-2 border-t">
+                      <Label className="text-sm font-semibold">Team Names</Label>
+                      {teamSports.map((sport: any) => (
+                        <div key={sport.id} className="space-y-1">
+                          <Label htmlFor={`teamName-${sport.id}`} className="text-xs text-muted-foreground">{sport.name}</Label>
+                          <Input
+                            id={`teamName-${sport.id}`}
+                            className="w-64"
+                            value={teamNames[sport.id] || ""}
+                            onChange={(e) => setTeamNames((prev) => ({ ...prev, [sport.id]: e.target.value }))}
+                            disabled={frozen}
+                            placeholder={`Team name for ${sport.name}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
                 </div>
 
                 {user.role === "user" && (
@@ -709,6 +741,18 @@ export default function UserDashboard() {
                     <p className="text-xs text-muted-foreground">
                       This note is visible to community administrators reviewing your registration.
                     </p>
+                  </div>
+                )}
+                
+                {user.role === "user" && (
+                  <div className="pt-6 border-t flex justify-end">
+                    <Button 
+                      variant="hero" 
+                      onClick={handleSaveProfile}
+                      disabled={updateProfileMutation.isPending || frozen}
+                    >
+                      {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
+                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -834,19 +878,30 @@ export default function UserDashboard() {
                                       const isDisabled = frozen || (isUnavailable && !isSelected);
                                       
                                       return (
-                                        <div key={child.id} className="flex items-center space-x-2">
-                                          <Checkbox
-                                            id={`sport-${child.id}`}
-                                            checked={isSelected}
-                                            onCheckedChange={() => toggleSport(child.id)}
-                                            disabled={isDisabled}
-                                          />
-                                          <Label 
-                                            htmlFor={`sport-${child.id}`} 
-                                            className={getSportLabelClass(isUnavailable, isDisabled)}
-                                          >
-                                            {child.name}
-                                          </Label>
+                                        <div key={child.id} className="flex flex-col gap-1">
+                                          <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                              id={`sport-${child.id}`}
+                                              checked={isSelected}
+                                              onCheckedChange={() => toggleSport(child.id)}
+                                              disabled={isDisabled}
+                                            />
+                                            <Label 
+                                              htmlFor={`sport-${child.id}`} 
+                                              className={getSportLabelClass(isUnavailable, isDisabled)}
+                                            >
+                                              {child.name}
+                                            </Label>
+                                          </div>
+                                          {isSelected && (child as any).requiresTeamName && (
+                                            <Input
+                                              className="ml-6 h-7 w-64 text-sm"
+                                              placeholder={`Team name for ${child.name}`}
+                                              value={teamNames[child.id] || ""}
+                                              onChange={(e) => setTeamNames((prev) => ({ ...prev, [child.id]: e.target.value }))}
+                                              disabled={frozen}
+                                            />
+                                          )}
                                         </div>
                                       );
                                     })}
@@ -854,15 +909,13 @@ export default function UserDashboard() {
                                 </>
                               ) : (
                                 // If parent has no children, show parent as selectable
-                                <div className="flex items-center space-x-2">
+                                <div className="flex flex-col gap-1">
                                   {(() => {
-                                    // Check if this parent is incompatible with any selected sport
+                                    // ... incompatibility logic same as before
                                     const parentIncompatibleIds = (parent as any).incompatibleWith?.map((inc: any) => inc.incompatibleSportId) || [];
                                     const isIncompatibleWithSelected = selectedSports.some((selectedId) => 
                                       parentIncompatibleIds.includes(selectedId)
                                     );
-                                    
-                                    // Check if any selected sport is incompatible with this parent
                                     let isIncompatibleFromSelected = false;
                                     for (const selectedId of selectedSports) {
                                       const selectedSport = activeSports.find((s: any) => s.id === selectedId);
@@ -874,27 +927,36 @@ export default function UserDashboard() {
                                         }
                                       }
                                     }
-                                    
                                     const isSelected = selectedSports.includes(parent.id);
                                     const isUnavailable =
                                       Boolean(getAgeRestrictionReason(parent) || getGenderRestrictionReason(parent)) ||
                                       (selectedSports.length > 0 && (isIncompatibleWithSelected || isIncompatibleFromSelected) && !isSelected);
                                     const isDisabled = frozen || (isUnavailable && !isSelected);
-                                    
                                     return (
                                       <>
-                                        <Checkbox
-                                          id={`sport-${parent.id}`}
-                                          checked={isSelected}
-                                          onCheckedChange={() => toggleSport(parent.id)}
-                                          disabled={isDisabled}
-                                        />
-                                        <Label 
-                                          htmlFor={`sport-${parent.id}`} 
-                                          className={getSportLabelClass(isUnavailable, isDisabled)}
-                                        >
-                                          {parent.name}
-                                        </Label>
+                                        <div className="flex items-center space-x-2">
+                                          <Checkbox
+                                            id={`sport-${parent.id}`}
+                                            checked={isSelected}
+                                            onCheckedChange={() => toggleSport(parent.id)}
+                                            disabled={isDisabled}
+                                          />
+                                          <Label 
+                                            htmlFor={`sport-${parent.id}`} 
+                                            className={getSportLabelClass(isUnavailable, isDisabled)}
+                                          >
+                                            {parent.name}
+                                          </Label>
+                                        </div>
+                                        {isSelected && (parent as any).requiresTeamName && (
+                                          <Input
+                                            className="ml-6 h-7 w-64 text-sm"
+                                            placeholder={`Team name for ${parent.name}`}
+                                            value={teamNames[parent.id] || ""}
+                                            onChange={(e) => setTeamNames((prev) => ({ ...prev, [parent.id]: e.target.value }))}
+                                            disabled={frozen}
+                                          />
+                                        )}
                                       </>
                                     );
                                   })()}
