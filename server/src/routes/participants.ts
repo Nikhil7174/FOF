@@ -92,7 +92,7 @@ const createParticipantSchema = z.object({
   ).min(1, "At least one sport must be selected"),
   teamName: z.string().optional(),
   teamNames: z.record(z.string(), z.string()).optional(),
-  notes: z.string().min(1, "Payment details are required").max(500),
+  notes: z.string().max(500).optional().nullable(),
 });
 
 function getSportIdsFromInput(sports: any[]): string[] {

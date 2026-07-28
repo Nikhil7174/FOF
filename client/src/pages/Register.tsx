@@ -255,12 +255,7 @@ export default function Register() {
       return;
     }
 
-    // Validate payment details (notes)
     const trimmedNotes = notes.trim();
-    if (!trimmedNotes) {
-      toast({ title: "Payment Details Required", description: "Please provide payment details.", variant: "destructive" });
-      return;
-    }
 
     const unavailableSelectedSport = selectedSports
       .map((sportId) => activeSports.find((sport) => sport.id === sportId))
@@ -606,12 +601,11 @@ export default function Register() {
 
                 {/* Payment Details */}
                 <div className="pt-4 border-t">
-                  <Label htmlFor="notes">Details *</Label>
+                  <Label htmlFor="notes">Details</Label>
                   <Textarea
                     id="notes"
                     name="notes"
                     placeholder="Provide details by community if applicable."
-                    required
                     disabled={isSubmitting}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
@@ -619,7 +613,7 @@ export default function Register() {
                     maxLength={500}
                   />
                   <p className="text-xs text-muted-foreground mt-2">
-                    Up to 500 characters. Please provide your payment details for registration processing.
+                    Optional. Up to 500 characters. You may provide payment details for registration processing.
                   </p>
                 </div>
 

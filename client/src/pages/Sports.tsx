@@ -29,7 +29,7 @@ export default function Sports() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <div className="container mx-auto px-4 py-12">
         <div className="text-center mb-12 animate-fade-in">
           <div className="inline-flex items-center justify-center p-3 bg-gradient-hero rounded-full mb-4">
@@ -173,7 +173,6 @@ export default function Sports() {
                   <LayoutGrid className="h-5 w-5 text-primary" />
                   Sports Draws & Fixtures
                 </CardTitle>
-                <CardDescription>Expand any sport to view its draws / fixtures schedule</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoadingSports ? (
