@@ -63,7 +63,7 @@ const PORT = process.env.PORT || 3000;
  * - Place cors() BEFORE JSON parsing and route registration
  * - Use app.options('*', cors()) so preflight is handled automatically
  */
-const defaultFrontendUrl = "https://fof-iota.vercel.app";
+const defaultFrontendUrl = "https://fof.co.ke";
 const FRONTEND_URL = process.env.FRONTEND_URL || defaultFrontendUrl;
 const additionalOrigins = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
@@ -73,6 +73,8 @@ const additionalOrigins = (process.env.ALLOWED_ORIGINS || "")
 const staticOrigins = [
   FRONTEND_URL,
   defaultFrontendUrl,
+  "https://fof.co.ke",
+  "https://www.fof.co.ke",
   "http://localhost:5173",
   "http://localhost:8080",
   "http://localhost:3000",
@@ -95,7 +97,11 @@ function isAllowedOrigin(origin?: string | null): boolean {
 
   try {
     const url = new URL(origin);
-    // Allow any vercel.app subdomain
+    // Allow production domain and subdomains (e.g. www.fof.co.ke)
+    if (url.hostname === "fof.co.ke" || url.hostname.endsWith(".fof.co.ke")) {
+      return true;
+    }
+    // Allow any vercel.app subdomain (staging/preview deployments)
     if (url.hostname.endsWith(".vercel.app")) {
       return true;
     }
@@ -107,29 +113,27 @@ function isAllowedOrigin(origin?: string | null): boolean {
 
 console.log("CORS allowed origins:", allowedOrigins);
 
-/**
- * CORS middleware — simple, reliable
- * - origin: callback uses isAllowedOrigin
- * - credentials enabled
- */
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (isAllowedOrigin(origin)) {
-        return callback(null, true);
-      }
-      console.warn(`CORS blocked origin: ${origin}`);
-      return callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-    exposedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+const corsOptions: cors.CorsOptions = {
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+    console.warn(`CORS blocked origin: ${origin}`);
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  exposedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+  maxAge: 86400,
+};
 
-// Ensure preflight OPTIONS are handled by the cors middleware automatically
-app.options("*", cors());
+/**
+ * CORS middleware — must use the same options for preflight (OPTIONS) requests.
+ */
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
 /**
  * Simple request logger (helps confirm preflight hits the server)

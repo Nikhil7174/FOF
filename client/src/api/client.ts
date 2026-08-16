@@ -3,7 +3,7 @@
 // Import types from shared types file
 import type { Role, User, Participant, ParticipantStats, CommunitySportMatrix, VolunteerEntry, SportRecord, CommunityRecord, DepartmentRecord, CalendarItem, CalendarGridEntry, SettingsRecord, CommunityContact, Convenor, TournamentFormat, LeaderboardEntry, LeaderboardRanking, SportLeaderboardEntry, BulkUploadResult } from "@/types";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://fof-tp9f.onrender.com/api";
 
 export interface CreateParticipantInput {
   firstName: string;
@@ -62,13 +62,18 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getToken();
+  const method = (options.method || "GET").toUpperCase();
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...(options.headers as Record<string, string> || {}),
   };
 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
+  }
+
+  // Avoid Content-Type on bodyless GET/HEAD requests — it triggers unnecessary CORS preflight.
+  if (options.body != null && method !== "GET" && method !== "HEAD" && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
   }
 
   const url = `${API_BASE_URL}${endpoint}`;
